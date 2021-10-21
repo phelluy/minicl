@@ -1,30 +1,9 @@
 // minimal implementation of a compute library
 // in the spirit of OpenCL, with essential features
-#include <stdio.h>
 #include <stdbool.h>
 
 #ifndef MINICL_H
 #define MINICL_H
-
-typedef struct minicl_buffer
-{
-
-    // a pointer to the data
-    void *buf_data;
-
-    // number of data
-    size_t buf_len;
-
-    // size of the type
-    // the occupoied memory is buf_len * type_size
-    size_t type_size;
-
-    // opaque pointer to the copied data
-    // inside the accelerator
-    // the exact type depend on the underlying API (opencl, metal, etc.)
-    void *buf_data_copy;
-
-} minicl_buffer;
 
 enum minicl_device_type
 {
@@ -50,16 +29,43 @@ typedef struct minicl_device
 
 } minicl_device;
 
-// all functions return 0 if success or an error code.
+typedef struct minicl_buffer
+{
+
+    // a pointer to the data
+    void *buf_data;
+
+    // number of data
+    size_t buf_len;
+
+    // size of the type
+    // the occupoied memory is buf_len * type_size
+    size_t type_size;
+
+    // the device on which the buffer is created
+    minicl_device *dev;
+
+    // opaque pointer to the copied data
+    // inside the accelerator
+    // the exact type depend on the underlying API (opencl, metal, etc.)
+    void *buf_data_copy;
+
+} minicl_buffer;
+
+// utility for reading a file in a string
+char* minicl_get_string(char* filename);
+
+// unless stated, all functions return 0 if success or an error code.
 
 // initialization of the device of a given type with a source code
-int minicl_device_init(minicl_device *dev, minicl_device accel_type, char *program);
+int minicl_device_init(minicl_device *dev, minicl_device_type accel_type, char *program);
 
 // cleanly release the device
 int minicl_device_release(minicl_device *dev);
 
 // create a buffer on the accelerator from given data
-int minicl_buffer_init(minicl_buffer *buf, void *data, size_t len, size_t type_size);
+int minicl_buffer_init(minicl_buffer *buf, minicl_device *dev,
+                       void *data, size_t len, size_t type_size);
 
 // push/pull the buffer to/from accelerator
 int minicl_buffer_push(minicl_buffer *buf);
