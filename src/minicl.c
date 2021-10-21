@@ -6,7 +6,8 @@
 char* minicl_get_string(char* filename)
 {
    char *buffer = NULL;
-   int string_size, read_size;
+   int string_size;
+   int read_size;
    FILE *handler = fopen(filename, "r");
 
    if (handler)
