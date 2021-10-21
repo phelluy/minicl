@@ -42,3 +42,12 @@ char* minicl_get_string(char* filename)
 
     return buffer;
 }
+
+int minicl_device_init(minicl_device *dev, enum minicl_device_type accel_type, char *program){
+
+// load a shared library created with
+// gcc -c toto.c
+// gcc -dynamiclib -fPIC -o toto.dylib toto.o
+// then dlopen, dlsym and dlclose
+
+}
