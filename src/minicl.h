@@ -6,9 +6,10 @@
 #ifndef MINICL_H
 #define MINICL_H
 
-typedef struct minicl_buffer {
+typedef struct minicl_buffer
+{
 
-    // a pointer to the data 
+    // a pointer to the data
     void *buf_data;
 
     // number of data
@@ -18,7 +19,6 @@ typedef struct minicl_buffer {
     // the occupoied memory is buf_len * type_size
     size_t type_size;
 
-
     // opaque pointer to the copied data
     // inside the accelerator
     // the exact type depend on the underlying API (opencl, metal, etc.)
@@ -26,16 +26,22 @@ typedef struct minicl_buffer {
 
 } minicl_buffer;
 
-enum minicl_device_type {CPU, OPENCL, METAL};
+enum minicl_device_type
+{
+    CPU,
+    OPENCL,
+    METAL
+};
 
-typedef struct minicl_device {
+typedef struct minicl_device
+{
 
     // type of accelerator
     enum minicl_device_type accel_type;
 
     // an opaque pointer to
     // the boilerplate things that
-    // any compute library needs...  
+    // any compute library needs...
     void *config;
 
     // a string containing the source code
@@ -44,10 +50,10 @@ typedef struct minicl_device {
 
 } minicl_device;
 
-// all functions return 0 if success or an error code. 
+// all functions return 0 if success or an error code.
 
 // initialization of the device of a given type with a source code
-int minicl_device_init(minicl_device *dev, minicl_device accel_type, char* program);
+int minicl_device_init(minicl_device *dev, minicl_device accel_type, char *program);
 
 // cleanly release the device
 int minicl_device_release(minicl_device *dev);
@@ -62,8 +68,12 @@ int minicl_buffer_pull(minicl_buffer *buf);
 // cleanly release the buffer
 int minicl_buffer_release(minicl_buffer *buf);
 
-
-
-
+// launch the kernel with name kernel_name
+// with work_size work items
+// and group_size work groups
+// passing a list of nargs buffers to the kernel
+int minicl_device_call(minicl_device *dev, char *kernel_name,
+                       size_t group_size, size_t work_size,
+                       minicl_buffer **args, size_t nargs);
 
 #endif
