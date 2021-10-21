@@ -1,6 +1,8 @@
 // minimal implementation of a compute library
 // in the spirit of OpenCL, with essential features
 #include <stdbool.h>
+#include <stdlib.h>
+
 
 #ifndef MINICL_H
 #define MINICL_H
@@ -58,7 +60,7 @@ char* minicl_get_string(char* filename);
 // unless stated, all functions return 0 if success or an error code.
 
 // initialization of the device of a given type with a source code
-int minicl_device_init(minicl_device *dev, minicl_device_type accel_type, char *program);
+int minicl_device_init(minicl_device *dev, enum minicl_device_type accel_type, char *program);
 
 // cleanly release the device
 int minicl_device_release(minicl_device *dev);
