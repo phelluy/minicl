@@ -153,8 +153,9 @@ impl Accel {
         };
 
         let szf = std::mem::size_of::<cl_sys::cl_mem>();
+        println!("szf={}",szf);
         let err = unsafe {
-            cl_sys::clSetKernelArg(self.kernel, 0, szf, buffer)
+            cl_sys::clSetKernelArg(self.kernel, 0, szf, &buffer as *const _ as *const cl_sys::c_void)
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
 
@@ -166,6 +167,14 @@ impl Accel {
             &local_size, 0, std::ptr::null(), std::ptr::null_mut())
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
+
+        let mut err =0;
+        unsafe {
+            let blocking = cl_sys::CL_TRUE;
+            cl_sys::clEnqueueMapBuffer(self.queue, buffer, blocking, cl_sys::CL_MAP_READ, 
+                0, n * szf, 0, std::ptr::null(), std::ptr::null_mut(), &mut err);
+        }
+
         let v = unsafe {Vec::from_raw_parts(ptr, n, n) };
         v
     }
