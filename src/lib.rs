@@ -77,32 +77,36 @@ impl Accel {
             program
         };
 
-        unsafe {
-            let opt = std::ffi::CString::new("").unwrap();
+        let errb = unsafe {
+            let opt = std::ffi::CString::new("-w").unwrap();
             let log: *mut cl_sys::c_void = std::ptr::null_mut();
-            let err = cl_sys::clBuildProgram(
-                program,
-                1,
-                &device,
-                opt.as_ptr(),
-                None,
-                log,
-            );
+            cl_sys::clBuildProgram(program, 1, &device, opt.as_ptr(), None, log)
             //println!("{:?}",log as str);
             // let log = unsafe {
             //     std::ffi::CStr::from_ptr(log as *const i8).to_string_lossy().into_owned()
             // };
             // println!("{}",log);
             //assert_eq!(err, cl_sys::CL_SUCCESS);
-        }
+        };
 
         unsafe {
-            let log = vec![1;1000];
+            // first get the size of the build log
+            let mut size = 0;
+            let err = cl_sys::clGetProgramBuildInfo(
+                program,
+                device,
+                cl_sys::CL_PROGRAM_BUILD_LOG,
+                0,
+                std::ptr::null_mut(),
+                &mut size,
+            );
+            assert_eq!(err, cl_sys::CL_SUCCESS);
+            println!("Size of build log:{}",size);
+            // then get the build log
+            let log = vec![1; size];
             let log = String::from_utf8(log).unwrap();
             //let log: *mut cl_sys::c_void = std::ptr::null_mut();
             let log = std::ffi::CString::new(log).unwrap();
-
-            let mut size = 1000;
 
             let err = cl_sys::clGetProgramBuildInfo(
                 program,
@@ -110,15 +114,17 @@ impl Accel {
                 cl_sys::CL_PROGRAM_BUILD_LOG,
                 size,
                 log.as_ptr() as *mut cl_sys::c_void,
-                &mut size);
-            //println!("{:?}",log as str);
-            let log = 
-                std::ffi::CStr::from_ptr(log.as_ptr()).to_string_lossy().into_owned();
-            println!("{}",log);
+                &mut size,
+            );
             assert_eq!(err, cl_sys::CL_SUCCESS);
+            let log = std::ffi::CStr::from_ptr(log.as_ptr())
+                .to_string_lossy()
+                .into_owned();
+                println!("Build messages:\n-------------------------------------");
+                println!("{}", log);
+                println!("-------------------------------------");
+                assert_eq!(errb, cl_sys::CL_SUCCESS,"Build failure");
         }
-
-
 
         Accel {
             source: oclsource,
