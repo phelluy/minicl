@@ -133,4 +133,40 @@ impl Accel {
             kernel,
         }
     }
+
+    pub fn run_kernel(&mut self, mut v: Vec<i32>) -> Vec<i32> {
+        v.shrink_to_fit();
+        assert!(v.len() == v.capacity());
+        let ptr = v.as_mut_ptr();
+        let n = v.len();
+        std::mem::forget(v);
+        let szf = std::mem::size_of::<i32>();
+        let mut err: i32 = 0;
+        let buffer = unsafe {
+            cl_sys::clCreateBuffer(
+                self.context,
+                cl_sys::CL_MEM_READ_WRITE | cl_sys::CL_MEM_USE_HOST_PTR,
+                n * szf,
+                ptr as *mut cl_sys::c_void,
+                &mut err,
+            )
+        };
+
+        let szf = std::mem::size_of::<cl_sys::cl_mem>();
+        let err = unsafe {
+            cl_sys::clSetKernelArg(self.kernel, 0, szf, buffer)
+        };
+        assert_eq!(err, cl_sys::CL_SUCCESS);
+
+        let global_size = n;
+        let local_size = n;
+        let offset = 0;
+        let err = unsafe{
+            cl_sys::clEnqueueNDRangeKernel(self.queue, self.kernel, 1, &offset, &global_size, 
+            &local_size, 0, std::ptr::null(), std::ptr::null_mut())
+        };
+        assert_eq!(err, cl_sys::CL_SUCCESS);
+        let v = unsafe {Vec::from_raw_parts(ptr, n, n) };
+        v
+    }
 }

@@ -16,5 +16,11 @@ fn main() {
 
     println!("Accel={:?}", cldev);
 
+    let mut v = vec![12; 10];
+
+    let v = cldev.run_kernel(v);
+
+    println!("v={:?}",v);
+
 }
 
