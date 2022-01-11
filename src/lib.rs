@@ -88,8 +88,8 @@ impl Accel {
                 None,
                 log.as_ptr() as *mut cl_sys::c_void,
             );
-            //println!("{:?}",log);
-            assert_eq!(err, cl_sys::CL_SUCCESS);
+            //println!("{:?}",log as str);
+            //assert_eq!(err, cl_sys::CL_SUCCESS);
         }
 
         Accel {
