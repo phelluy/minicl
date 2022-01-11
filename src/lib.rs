@@ -78,19 +78,47 @@ impl Accel {
         };
 
         unsafe {
-            let opt = "";
-            let mut log = [" "; 10000]; 
+            let opt = std::ffi::CString::new("").unwrap();
+            let log: *mut cl_sys::c_void = std::ptr::null_mut();
             let err = cl_sys::clBuildProgram(
                 program,
                 1,
                 &device,
-                opt.as_ptr() as *const cl_sys::libc::c_char,
+                opt.as_ptr(),
                 None,
-                log.as_ptr() as *mut cl_sys::c_void,
+                log,
             );
             //println!("{:?}",log as str);
+            // let log = unsafe {
+            //     std::ffi::CStr::from_ptr(log as *const i8).to_string_lossy().into_owned()
+            // };
+            // println!("{}",log);
             //assert_eq!(err, cl_sys::CL_SUCCESS);
         }
+
+        unsafe {
+            let log = vec![1;1000];
+            let log = String::from_utf8(log).unwrap();
+            //let log: *mut cl_sys::c_void = std::ptr::null_mut();
+            let log = std::ffi::CString::new(log).unwrap();
+
+            let mut size = 1000;
+
+            let err = cl_sys::clGetProgramBuildInfo(
+                program,
+                device,
+                cl_sys::CL_PROGRAM_BUILD_LOG,
+                size,
+                log.as_ptr() as *mut cl_sys::c_void,
+                &mut size);
+            //println!("{:?}",log as str);
+            let log = 
+                std::ffi::CStr::from_ptr(log.as_ptr()).to_string_lossy().into_owned();
+            println!("{}",log);
+            assert_eq!(err, cl_sys::CL_SUCCESS);
+        }
+
+
 
         Accel {
             source: oclsource,
