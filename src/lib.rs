@@ -116,6 +116,13 @@ impl Accel {
         println!("-------------------------------------");
         assert_eq!(errb, cl_sys::CL_SUCCESS, "Build failure");
 
+        let mut err: i32 = 0;
+        let kernel = unsafe {
+            let name = std::ffi::CString::new("simple_add").unwrap();
+            cl_sys::clCreateKernel(program, name.as_ptr(), &mut err)
+        };
+        assert_eq!(err, cl_sys::CL_SUCCESS);
+
         Accel {
             source: oclsource,
             platform,
