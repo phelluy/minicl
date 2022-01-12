@@ -22,7 +22,7 @@ fn main() {
 
     println!("v={:?}",v);
 
-    std::mem::forget(v); // moche moche moche !
+    //std::mem::forget(v); // moche moche moche !
 
 }
 

@@ -180,7 +180,7 @@ impl Accel {
         let buffer = unsafe {
             cl_sys::clCreateBuffer(
                 self.context,
-                cl_sys::CL_MEM_READ_WRITE | cl_sys::CL_MEM_COPY_HOST_PTR,
+                cl_sys::CL_MEM_READ_WRITE | cl_sys::CL_MEM_USE_HOST_PTR,
                 n * szf,
                 ptr as *mut cl_sys::c_void,
                 &mut err,
@@ -222,7 +222,7 @@ impl Accel {
         let szf = std::mem::size_of::<i32>();
         let ptr = unsafe {
             cl_sys::clEnqueueMapBuffer(
-                self.queue,
+                self.queue ,
                 buffer,
                 blocking,
                 cl_sys::CL_MAP_READ,
