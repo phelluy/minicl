@@ -203,9 +203,9 @@ impl Accel {
         let mut err = 0;
         let blocking = cl_sys::CL_TRUE;
         let szf = std::mem::size_of::<T>();
-        let toto = self.buffers.get(&name).unwrap();
+        //let toto = self.buffers.get(&name).unwrap();
         let (buffer, size) = self.buffers.get(&name).unwrap();
-        println!("buffer={:?}",*buffer);
+        println!("buffer={:?} size={} szf={}",*buffer,size,szf);
         let ptr = unsafe {
             cl_sys::clEnqueueMapBuffer(
                 self.queue,
@@ -222,7 +222,8 @@ impl Accel {
         } as *mut T;
         assert_eq!(err, cl_sys::CL_SUCCESS);
         let n = size / szf;
-        assert!(n%szf == 0);
+        println!("size={} szf={}",size,szf);
+        assert!(size%szf == 0);
         println!("ptr after cl map: {:?}", ptr);
         let v : Vec<T> = unsafe { Vec::from_raw_parts(ptr, n, n) };
         // take possession of the memory
@@ -234,9 +235,8 @@ impl Accel {
     pub fn run_kernel(&mut self, kname: String, vname: String) {
 
         let szf = std::mem::size_of::<cl_sys::cl_mem>();
-        println!("szf={}", szf);
         let kernel = self.kernels.get(&kname).unwrap();
-        println!("kernel={:?}",*kernel);
+        println!("kernel={:?} sizeof cl_mem={}",*kernel,szf);
         let (buffer,size) = self.buffers.get(&vname).unwrap();
         println!("buffer={:?}",*buffer);
         let err = unsafe {
