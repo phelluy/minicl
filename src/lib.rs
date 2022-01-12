@@ -173,7 +173,7 @@ impl Accel {
         v.shrink_to_fit();
         assert!(v.len() == v.capacity());
         let ptr = v.as_mut_ptr();
-        println!("ptr before cl buffer création: {:?}",ptr);
+        println!("ptr before cl buffer création: {:?}", ptr);
         let n = v.len();
         std::mem::forget(v);
         let szf = std::mem::size_of::<i32>();
@@ -218,12 +218,17 @@ impl Accel {
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
 
+        let err = unsafe {
+            cl_sys::clFinish(self.queue)
+        };
+        assert_eq!(err, cl_sys::CL_SUCCESS);
+
         let mut err = 0;
         let blocking = cl_sys::CL_TRUE;
         let szf = std::mem::size_of::<i32>();
         let ptr = unsafe {
             cl_sys::clEnqueueMapBuffer(
-                self.queue ,
+                self.queue,
                 buffer,
                 blocking,
                 cl_sys::CL_MAP_READ,
@@ -235,7 +240,7 @@ impl Accel {
                 &mut err,
             )
         } as *mut i32;
-        println!("ptr after cl map: {:?}",ptr);
+        println!("ptr after cl map: {:?}", ptr);
         let v = unsafe { Vec::from_raw_parts(ptr, n, n) };
         // take possession of the memory
         //let err = unsafe{ cl_sys::clRetainMemObject(buffer)};
