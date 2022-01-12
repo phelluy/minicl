@@ -9,7 +9,7 @@ pub struct Accel {
     program: cl_sys::cl_program,
     queue: cl_sys::cl_command_queue,
     kernels: HashMap<String, cl_sys::cl_kernel>,
-    buffers: HashMap<String,(cl_sys::cl_mem,usize)>,
+    buffers: HashMap<String,(cl_sys::cl_mem,usize,usize)>,
 }
 
 impl Accel {
@@ -197,7 +197,7 @@ impl Accel {
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
         println!("buffer={:?}",buffer);
-        self.buffers.insert(name,(buffer,n*szf));        
+        self.buffers.insert(name,(buffer,n*szf,szf));        
     }
 
     pub fn take_buffer<T>(&mut self, name: String) -> Vec<T> {
@@ -205,7 +205,7 @@ impl Accel {
         let blocking = cl_sys::CL_TRUE;
         let szf = std::mem::size_of::<T>();
         //let toto = self.buffers.get(&name).unwrap();
-        let (buffer, size) = self.buffers.get(&name).unwrap();
+        let (buffer, size,_) = self.buffers.get(&name).unwrap();
         println!("buffer={:?} size={} szf={}",*buffer,size,szf);
         let ptr = unsafe {
             cl_sys::clEnqueueMapBuffer(
@@ -235,16 +235,16 @@ impl Accel {
 
     pub fn run_kernel(&mut self, kname: String, vname: String) {
 
-        let szf = std::mem::size_of::<cl_sys::cl_mem>();
+        let smem = std::mem::size_of::<cl_sys::cl_mem>();
         let kernel = self.kernels.get(&kname).unwrap();
-        println!("kernel={:?} sizeof cl_mem={}",*kernel,szf);
-        let (buffer,size) = self.buffers.get(&vname).unwrap();
-        println!("buffer={:?}",*buffer);
+        let (buffer,size,szf) = self.buffers.get(&vname).unwrap();
+        let szf = *szf;
+        println!("buffer={:?} szf={}",*buffer,szf);
         let err = unsafe {
             cl_sys::clSetKernelArg(
                 *kernel,
                 0,
-                szf,
+                smem,
                 buffer as *const _ as *const cl_sys::c_void,
             )
         };
