@@ -15,14 +15,24 @@ impl Accel {
     /// from an OpenCL source code
     pub fn new(oclsource: String) -> Accel {
         let platform: cl_sys::cl_platform_id = std::ptr::null_mut();
-        let mut platform = [platform;10];
         let mut nb_platforms: u32 = 0;
         let mut device: cl_sys::cl_device_id = std::ptr::null_mut();
-        let err = unsafe { cl_sys::clGetPlatformIDs(3, &mut platform[0], &mut nb_platforms) };
+        let err = unsafe { cl_sys::clGetPlatformIDs(0, std::ptr::null_mut(), &mut nb_platforms) };
         assert_eq!(err, cl_sys::CL_SUCCESS);
-
         println!("Found {} platform(s)", nb_platforms);
-        let numplat = 1 as usize;
+        assert!(10 > nb_platforms);
+        let mut platform = [platform; 10];
+        let err =
+            unsafe { cl_sys::clGetPlatformIDs(nb_platforms, &mut platform[0], &mut nb_platforms) };
+        assert_eq!(err, cl_sys::CL_SUCCESS);
+        use std::io::{stdin, stdout, Write};
+        let mut s = String::new();
+        println!("Enter platform num.");
+        stdin()
+            .read_line(&mut s)
+            .expect("Did not enter a correct string");
+        let input: usize = s.trim().parse().expect("Wanted a number");
+        let numplat = input;
         assert!(numplat < nb_platforms as usize);
 
         let mut size = 1000;
@@ -45,7 +55,6 @@ impl Accel {
                 .to_string_lossy()
                 .into_owned()
         };
-        println!("Build messages:\n-------------------------------------");
         println!("Platform: {}", platform_name);
 
         let mut temp: u32 = 0;
@@ -226,6 +235,9 @@ impl Accel {
             )
         } as *mut i32;
         let v = unsafe { Vec::from_raw_parts(ptr, n, n) };
+        // take possession of the memory
+        //let err = unsafe{ cl_sys::clRetainMemObject(buffer)};
+        assert_eq!(err, cl_sys::CL_SUCCESS);
         v
     }
 }
