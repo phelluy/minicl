@@ -249,7 +249,7 @@ impl Accel {
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
         let n = size/szf;
-        assert!(n%szf == 0);
+        assert!(size%szf == 0);
 
         let global_size = n;
         let local_size = n;
