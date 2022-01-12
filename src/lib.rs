@@ -14,19 +14,45 @@ impl Accel {
     /// Generate a minicl environment
     /// from an OpenCL source code
     pub fn new(oclsource: String) -> Accel {
-        let mut platform: cl_sys::cl_platform_id = std::ptr::null_mut();
+        let platform: cl_sys::cl_platform_id = std::ptr::null_mut();
+        let mut platform = [platform;10];
         let mut nb_platforms: u32 = 0;
         let mut device: cl_sys::cl_device_id = std::ptr::null_mut();
-        let kernel: cl_sys::cl_kernel = std::ptr::null_mut();
-        let err = unsafe { cl_sys::clGetPlatformIDs(1, &mut platform, &mut nb_platforms) };
+        let err = unsafe { cl_sys::clGetPlatformIDs(3, &mut platform[0], &mut nb_platforms) };
         assert_eq!(err, cl_sys::CL_SUCCESS);
 
         println!("Found {} platform(s)", nb_platforms);
+        let numplat = 1 as usize;
+        assert!(numplat < nb_platforms as usize);
+
+        let mut size = 1000;
+        let platform_name = vec![1; size];
+        let platform_name = String::from_utf8(platform_name).unwrap();
+        let platform_name = std::ffi::CString::new(platform_name).unwrap();
+
+        let err = unsafe {
+            cl_sys::clGetPlatformInfo(
+                platform[numplat],
+                cl_sys::CL_PLATFORM_VENDOR,
+                size,
+                platform_name.as_ptr() as *mut cl_sys::c_void,
+                &mut size,
+            )
+        };
+        assert_eq!(err, cl_sys::CL_SUCCESS);
+        let platform_name = unsafe {
+            std::ffi::CStr::from_ptr(platform_name.as_ptr())
+                .to_string_lossy()
+                .into_owned()
+        };
+        println!("Build messages:\n-------------------------------------");
+        println!("Platform: {}", platform_name);
+
         let mut temp: u32 = 0;
         let err = unsafe {
             cl_sys::clGetDeviceIDs(
-                platform,
-                cl_sys::CL_DEVICE_TYPE_GPU,
+                platform[numplat],
+                cl_sys::CL_DEVICE_TYPE_GPU | cl_sys::CL_DEVICE_TYPE_CPU,
                 1,
                 &mut device,
                 &mut temp,
@@ -125,7 +151,7 @@ impl Accel {
 
         Accel {
             source: oclsource,
-            platform,
+            platform: platform[numplat],
             context,
             device,
             program,
@@ -145,7 +171,7 @@ impl Accel {
         let buffer = unsafe {
             cl_sys::clCreateBuffer(
                 self.context,
-                cl_sys::CL_MEM_READ_WRITE | cl_sys::CL_MEM_USE_HOST_PTR,
+                cl_sys::CL_MEM_READ_WRITE | cl_sys::CL_MEM_COPY_HOST_PTR,
                 n * szf,
                 ptr as *mut cl_sys::c_void,
                 &mut err,
@@ -153,29 +179,53 @@ impl Accel {
         };
 
         let szf = std::mem::size_of::<cl_sys::cl_mem>();
-        println!("szf={}",szf);
+        println!("szf={}", szf);
         let err = unsafe {
-            cl_sys::clSetKernelArg(self.kernel, 0, szf, &buffer as *const _ as *const cl_sys::c_void)
+            cl_sys::clSetKernelArg(
+                self.kernel,
+                0,
+                szf,
+                &buffer as *const _ as *const cl_sys::c_void,
+            )
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
 
         let global_size = n;
         let local_size = n;
         let offset = 0;
-        let err = unsafe{
-            cl_sys::clEnqueueNDRangeKernel(self.queue, self.kernel, 1, &offset, &global_size, 
-            &local_size, 0, std::ptr::null(), std::ptr::null_mut())
+        let err = unsafe {
+            cl_sys::clEnqueueNDRangeKernel(
+                self.queue,
+                self.kernel,
+                1,
+                &offset,
+                &global_size,
+                &local_size,
+                0,
+                std::ptr::null(),
+                std::ptr::null_mut(),
+            )
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
 
-        let mut err =0;
-        unsafe {
-            let blocking = cl_sys::CL_TRUE;
-            cl_sys::clEnqueueMapBuffer(self.queue, buffer, blocking, cl_sys::CL_MAP_READ, 
-                0, n * szf, 0, std::ptr::null(), std::ptr::null_mut(), &mut err);
-        }
-
-        let v = unsafe {Vec::from_raw_parts(ptr, n, n) };
+        let mut err = 0;
+        let blocking = cl_sys::CL_TRUE;
+        let szf = std::mem::size_of::<i32>();
+        let ptr = unsafe {
+            cl_sys::clEnqueueMapBuffer(
+                self.queue,
+                buffer,
+                blocking,
+                cl_sys::CL_MAP_READ,
+                0,
+                n * szf,
+                0,
+                std::ptr::null(),
+                std::ptr::null_mut(),
+                &mut err,
+            )
+        } as *mut i32;
+        let v = unsafe { Vec::from_raw_parts(ptr, n, n) };
         v
     }
 }
