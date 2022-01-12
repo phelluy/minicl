@@ -24,7 +24,7 @@ fn main() {
     let kname = "simple_add".to_string();
     cldev.register_kernel(kname.clone());
 
-    //cldev.run_kernel(kname,vname.clone());
+    cldev.run_kernel(kname,vname.clone());
 
     let v: Vec<i32> = cldev.take_buffer(vname);
 

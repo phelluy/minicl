@@ -255,20 +255,20 @@ impl Accel {
         let global_size = n;
         let local_size = n;
         let offset = 0;
-        let err = unsafe {
-            cl_sys::clEnqueueNDRangeKernel(
-                self.queue,
-                *kernel,
-                1,
-                &offset,
-                &global_size,
-                &local_size,
-                0,
-                std::ptr::null(),
-                std::ptr::null_mut(),
-            )
-        };
-        assert_eq!(err, cl_sys::CL_SUCCESS);
+        // let err = unsafe {
+        //     cl_sys::clEnqueueNDRangeKernel(
+        //         self.queue,
+        //         *kernel,
+        //         1,
+        //         &offset,
+        //         &global_size,
+        //         &local_size,
+        //         0,
+        //         std::ptr::null(),
+        //         std::ptr::null_mut(),
+        //     )
+        // };
+        // assert_eq!(err, cl_sys::CL_SUCCESS);
 
         let err = unsafe {
             cl_sys::clFinish(self.queue)
