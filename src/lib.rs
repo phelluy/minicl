@@ -180,7 +180,7 @@ impl Accel {
         v.shrink_to_fit();
         assert!(v.len() == v.capacity());
         let ptr0 = v.as_mut_ptr();
-        println!("ptr before cl buffer création: {:?}", ptr0);
+        println!("ptr0 before cl buffer création: {:?}", ptr0);
         let n = v.len();
         std::mem::forget(v);
         let szf = std::mem::size_of::<T>();
