@@ -184,6 +184,7 @@ impl Accel {
         let n = v.len();
         std::mem::forget(v);
         let szf = std::mem::size_of::<T>();
+        println!("size={}",n*szf);
         let mut err: i32 = 0;
         let buffer : cl_sys::cl_mem = unsafe {
             cl_sys::clCreateBuffer(

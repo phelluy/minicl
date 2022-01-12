@@ -18,11 +18,11 @@ fn main() {
 
     let v : Vec<i32> = vec![12; 10];
 
-    let kname = "simple_add".to_string();
-    cldev.register_kernel(kname.clone());
-
     let vname = "v".to_string();
     cldev.register_buffer(vname.clone(),v);
+
+    let kname = "simple_add".to_string();
+    cldev.register_kernel(kname.clone());
 
     cldev.run_kernel(kname,vname.clone());
 
