@@ -16,9 +16,17 @@ fn main() {
 
     println!("Accel={:?}", cldev);
 
-    let mut v = vec![12; 10];
+    let v : Vec<i32> = vec![12; 10];
 
-    let v = cldev.run_kernel(v);
+    let kname = "simple_add".to_string();
+    cldev.register_kernel(kname.clone());
+
+    let vname = "v".to_string();
+    cldev.register_buffer(vname.clone(),v);
+
+    cldev.run_kernel(kname,vname.clone());
+
+    let v: Vec<i32> = cldev.take_buffer(vname);
 
     println!("v={:?}",v);
 
