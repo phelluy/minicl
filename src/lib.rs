@@ -173,6 +173,7 @@ impl Accel {
         v.shrink_to_fit();
         assert!(v.len() == v.capacity());
         let ptr = v.as_mut_ptr();
+        println!("ptr before cl buffer création: {:?}",ptr);
         let n = v.len();
         std::mem::forget(v);
         let szf = std::mem::size_of::<i32>();
@@ -234,6 +235,7 @@ impl Accel {
                 &mut err,
             )
         } as *mut i32;
+        println!("ptr after cl map: {:?}",ptr);
         let v = unsafe { Vec::from_raw_parts(ptr, n, n) };
         // take possession of the memory
         //let err = unsafe{ cl_sys::clRetainMemObject(buffer)};
