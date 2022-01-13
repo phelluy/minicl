@@ -9,7 +9,7 @@ pub struct Accel {
     program: cl_sys::cl_program,
     queue: cl_sys::cl_command_queue,
     kernels: HashMap<String, cl_sys::cl_kernel>,
-    buffers: HashMap<String,(cl_sys::cl_mem,usize,usize)>,
+    buffers: HashMap<*mut cl_sys::c_void,(cl_sys::cl_mem,usize,usize)>,
 }
 
 impl Accel {
@@ -165,7 +165,7 @@ impl Accel {
         }
     }
 
-    pub fn register_kernel(&mut self, name: String) {
+    pub fn register_kernel(&mut self, name: &String) {
         let mut err: i32 = 0;
         let cname = std::ffi::CString::new(name.clone()).unwrap();
         let kernel:cl_sys::cl_kernel = unsafe {
@@ -173,13 +173,13 @@ impl Accel {
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
         println!("kernel={:?}",kernel);
-        self.kernels.insert(name,kernel);        
+        self.kernels.insert(name.clone(),kernel);        
     }
 
-    pub fn register_buffer<T>(&mut self, name: String, mut v:Vec<T>) {
+    pub fn register_buffer<T>(&mut self, name: &String, mut v:Vec<T>) -> *mut cl_sys::c_void {
         v.shrink_to_fit();
         assert!(v.len() == v.capacity());
-        let ptr0 = v.as_mut_ptr();
+        let ptr0 = v.as_mut_ptr() as *mut cl_sys::c_void;
         println!("ptr0 before cl buffer création: {:?}", ptr0);
         let n = v.len();
         std::mem::forget(v);
@@ -191,21 +191,22 @@ impl Accel {
                 self.context,
                 cl_sys::CL_MEM_READ_WRITE | cl_sys::CL_MEM_USE_HOST_PTR,
                 n * szf,
-                ptr0 as *mut cl_sys::c_void,
+                ptr0,
                 &mut err,
             )
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
         println!("buffer={:?}",buffer);
-        self.buffers.insert(name,(buffer,n*szf,szf));        
+        self.buffers.insert(ptr0,(buffer,n*szf,szf));    
+        ptr0    
     }
 
-    pub fn take_buffer<T>(&mut self, name: String) -> Vec<T> {
+    pub fn take_buffer<T>(&mut self, ptr0: *mut cl_sys::c_void) -> Vec<T> {
         let mut err = 0;
         let blocking = cl_sys::CL_TRUE;
         let szf = std::mem::size_of::<T>();
         //let toto = self.buffers.get(&name).unwrap();
-        let (buffer, size,_) = self.buffers.get(&name).unwrap();
+        let (buffer, size,_) = self.buffers.get(&ptr0).unwrap();
         println!("buffer={:?} size={} szf={}",*buffer,size,szf);
         let ptr = unsafe {
             cl_sys::clEnqueueMapBuffer(
@@ -225,7 +226,9 @@ impl Accel {
         let n = size / szf;
         println!("size={} szf={}",size,szf);
         assert!(size%szf == 0);
+        println!("ptr0 before cl map: {:?}", ptr0);
         println!("ptr after cl map: {:?}", ptr);
+        assert_eq!(ptr,ptr0 as *mut T);
         let v : Vec<T> = unsafe { Vec::from_raw_parts(ptr, n, n) };
         // take possession of the memory
         //let err = unsafe{ cl_sys::clRetainMemObject(buffer)};
@@ -233,11 +236,11 @@ impl Accel {
     }
 
 
-    pub fn run_kernel(&mut self, kname: String, vname: String) {
+    pub fn run_kernel(&mut self, kname: &String, ptr: *mut cl_sys::c_void) {
 
         let smem = std::mem::size_of::<cl_sys::cl_mem>();
-        let kernel = self.kernels.get(&kname).unwrap();
-        let (buffer,size,szf) = self.buffers.get(&vname).unwrap();
+        let kernel = self.kernels.get(kname).unwrap();
+        let (buffer,size,szf) = self.buffers.get(&ptr).unwrap();
         let szf = *szf;
         println!("buffer={:?} szf={}",*buffer,szf);
         let err = unsafe {

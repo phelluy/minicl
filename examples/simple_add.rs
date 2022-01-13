@@ -19,14 +19,19 @@ fn main() {
     let v : Vec<i32> = vec![12; 10];
 
     let vname = "v".to_string();
-    cldev.register_buffer(vname.clone(),v);
+    let v = cldev.register_buffer(&vname,v);
 
     let kname = "simple_add".to_string();
-    cldev.register_kernel(kname.clone());
+    cldev.register_kernel(&kname);
 
-    cldev.run_kernel(kname,vname.clone());
+    cldev.run_kernel(&kname,v);
 
-    let v: Vec<i32> = cldev.take_buffer(vname);
+    let v: Vec<i32> = cldev.take_buffer(v);
+
+    let v = cldev.register_buffer(&vname,v);
+    cldev.run_kernel(&kname,v);
+
+    let v: Vec<i32> = cldev.take_buffer(v);
 
     println!("v={:?}",v);
 
