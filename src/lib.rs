@@ -179,6 +179,10 @@ impl Accel {
         v.shrink_to_fit();
         assert!(v.len() == v.capacity());
         let ptr0 = v.as_mut_ptr() as *mut cl_sys::c_void;
+        assert!(
+            !self.buffers.contains_key(&ptr0),
+            "Buffer already registered."
+        );
         println!("ptr0 before cl buffer création: {:?}", ptr0);
         let n = v.len();
         std::mem::forget(v);
@@ -200,7 +204,39 @@ impl Accel {
         ptr0
     }
 
-    pub fn take_buffer<T>(&mut self, ptr0: *mut cl_sys::c_void) -> Vec<T> {
+    pub fn unmap_buffer<T>(&mut self, mut v: Vec<T>) -> *mut cl_sys::c_void {
+        v.shrink_to_fit();
+        assert!(v.len() == v.capacity());
+        let ptr0 = v.as_mut_ptr() as *mut cl_sys::c_void;
+        assert!(
+            self.buffers.contains_key(&ptr0),
+            "Buffer not yet registered."
+        );
+        let (buffer, size, szf) = self.buffers.get(&ptr0).unwrap();
+        println!("ptr0 before cl buffer création: {:?}", ptr0);
+        let n = v.len();
+        std::mem::forget(v);
+        let szf = std::mem::size_of::<T>();
+        println!("size={}", n * szf);
+        let mut err: i32 = 0;
+        let blocking = cl_sys::CL_TRUE;
+        let err = unsafe {
+            cl_sys::clEnqueueUnmapMemObject(
+                self.queue,
+                *buffer,
+                ptr0,
+                0,
+                std::ptr::null(),
+                std::ptr::null_mut(),
+            )
+        };
+        assert_eq!(err, cl_sys::CL_SUCCESS);
+        println!("buffer={:?}", buffer);
+        //self.buffers.insert(ptr0, (buffer, n * szf, szf));
+        ptr0
+    }
+
+    pub fn map_buffer<T>(&mut self, ptr0: *mut cl_sys::c_void) -> Vec<T> {
         let mut err = 0;
         let blocking = cl_sys::CL_TRUE;
         let szf = std::mem::size_of::<T>();
