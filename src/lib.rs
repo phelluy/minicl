@@ -9,7 +9,7 @@ pub struct Accel {
     program: cl_sys::cl_program,
     queue: cl_sys::cl_command_queue,
     kernels: HashMap<String, cl_sys::cl_kernel>,
-    buffers: HashMap<*mut cl_sys::c_void,(cl_sys::cl_mem,usize,usize)>,
+    buffers: HashMap<*mut cl_sys::c_void, (cl_sys::cl_mem, usize, usize)>,
 }
 
 impl Accel {
@@ -168,15 +168,14 @@ impl Accel {
     pub fn register_kernel(&mut self, name: &String) {
         let mut err: i32 = 0;
         let cname = std::ffi::CString::new(name.clone()).unwrap();
-        let kernel:cl_sys::cl_kernel = unsafe {
-            cl_sys::clCreateKernel(self.program, cname.as_ptr(), &mut err)
-        };
+        let kernel: cl_sys::cl_kernel =
+            unsafe { cl_sys::clCreateKernel(self.program, cname.as_ptr(), &mut err) };
         assert_eq!(err, cl_sys::CL_SUCCESS);
-        println!("kernel={:?}",kernel);
-        self.kernels.insert(name.clone(),kernel);        
+        println!("kernel={:?}", kernel);
+        self.kernels.insert(name.clone(), kernel);
     }
 
-    pub fn register_buffer<T>(&mut self, mut v:Vec<T>) -> *mut cl_sys::c_void {
+    pub fn register_buffer<T>(&mut self, mut v: Vec<T>) -> *mut cl_sys::c_void {
         v.shrink_to_fit();
         assert!(v.len() == v.capacity());
         let ptr0 = v.as_mut_ptr() as *mut cl_sys::c_void;
@@ -184,9 +183,9 @@ impl Accel {
         let n = v.len();
         std::mem::forget(v);
         let szf = std::mem::size_of::<T>();
-        println!("size={}",n*szf);
+        println!("size={}", n * szf);
         let mut err: i32 = 0;
-        let buffer : cl_sys::cl_mem = unsafe {
+        let buffer: cl_sys::cl_mem = unsafe {
             cl_sys::clCreateBuffer(
                 self.context,
                 cl_sys::CL_MEM_READ_WRITE | cl_sys::CL_MEM_USE_HOST_PTR,
@@ -196,9 +195,9 @@ impl Accel {
             )
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
-        println!("buffer={:?}",buffer);
-        self.buffers.insert(ptr0,(buffer,n*szf,szf));    
-        ptr0    
+        println!("buffer={:?}", buffer);
+        self.buffers.insert(ptr0, (buffer, n * szf, szf));
+        ptr0
     }
 
     pub fn take_buffer<T>(&mut self, ptr0: *mut cl_sys::c_void) -> Vec<T> {
@@ -206,8 +205,8 @@ impl Accel {
         let blocking = cl_sys::CL_TRUE;
         let szf = std::mem::size_of::<T>();
         //let toto = self.buffers.get(&name).unwrap();
-        let (buffer, size,_) = self.buffers.get(&ptr0).unwrap();
-        println!("buffer={:?} size={} szf={}",*buffer,size,szf);
+        let (buffer, size, _) = self.buffers.get(&ptr0).unwrap();
+        println!("buffer={:?} size={} szf={}", *buffer, size, szf);
         let ptr = unsafe {
             cl_sys::clEnqueueMapBuffer(
                 self.queue,
@@ -224,25 +223,23 @@ impl Accel {
         } as *mut T;
         assert_eq!(err, cl_sys::CL_SUCCESS);
         let n = size / szf;
-        println!("size={} szf={}",size,szf);
-        assert!(size%szf == 0);
+        println!("size={} szf={}", size, szf);
+        assert!(size % szf == 0);
         println!("ptr0 before cl map: {:?}", ptr0);
         println!("ptr after cl map: {:?}", ptr);
-        assert_eq!(ptr,ptr0 as *mut T);
-        let v : Vec<T> = unsafe { Vec::from_raw_parts(ptr, n, n) };
+        assert_eq!(ptr, ptr0 as *mut T);
+        let v: Vec<T> = unsafe { Vec::from_raw_parts(ptr, n, n) };
         // take possession of the memory
         //let err = unsafe{ cl_sys::clRetainMemObject(buffer)};
         v
     }
 
-
     pub fn run_kernel(&mut self, kname: &String, ptr: *mut cl_sys::c_void) {
-
         let smem = std::mem::size_of::<cl_sys::cl_mem>();
         let kernel = self.kernels.get(kname).unwrap();
-        let (buffer,size,szf) = self.buffers.get(&ptr).unwrap();
+        let (buffer, size, szf) = self.buffers.get(&ptr).unwrap();
         let szf = *szf;
-        println!("buffer={:?} szf={}",*buffer,szf);
+        println!("buffer={:?} szf={}", *buffer, szf);
         let err = unsafe {
             cl_sys::clSetKernelArg(
                 *kernel,
@@ -252,8 +249,8 @@ impl Accel {
             )
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
-        let n = size/szf;
-        assert!(size%szf == 0);
+        let n = size / szf;
+        assert!(size % szf == 0);
 
         let global_size = n;
         let local_size = n;
@@ -273,10 +270,7 @@ impl Accel {
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
 
-        let err = unsafe {
-            cl_sys::clFinish(self.queue)
-        };
+        let err = unsafe { cl_sys::clFinish(self.queue) };
         assert_eq!(err, cl_sys::CL_SUCCESS);
-
     }
 }
