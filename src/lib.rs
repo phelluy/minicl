@@ -176,7 +176,7 @@ impl Accel {
         self.kernels.insert(name.clone(),kernel);        
     }
 
-    pub fn register_buffer<T>(&mut self, name: &String, mut v:Vec<T>) -> *mut cl_sys::c_void {
+    pub fn register_buffer<T>(&mut self, mut v:Vec<T>) -> *mut cl_sys::c_void {
         v.shrink_to_fit();
         assert!(v.len() == v.capacity());
         let ptr0 = v.as_mut_ptr() as *mut cl_sys::c_void;

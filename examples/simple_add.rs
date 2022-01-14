@@ -18,22 +18,27 @@ fn main() {
 
     let v : Vec<i32> = vec![12; 10];
 
-    let vname = "v".to_string();
-    let v = cldev.register_buffer(&vname,v);
-
     let kname = "simple_add".to_string();
     cldev.register_kernel(&kname);
+
+    let v = cldev.register_buffer(v);
 
     cldev.run_kernel(&kname,v);
 
     let v: Vec<i32> = cldev.take_buffer(v);
 
-    let v = cldev.register_buffer(&vname,v);
+    let v = cldev.register_buffer(v);
     cldev.run_kernel(&kname,v);
 
     let v: Vec<i32> = cldev.take_buffer(v);
 
     println!("v={:?}",v);
+
+    let w : Vec<i32> = vec![11; 10];
+    let w = cldev.register_buffer(w);
+    cldev.run_kernel(&kname,w);
+    let w: Vec<i32> = cldev.take_buffer(w);
+    println!("w={:?}",w);
 
     //std::mem::forget(v); // moche moche moche !
 
