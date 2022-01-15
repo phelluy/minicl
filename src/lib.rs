@@ -363,3 +363,25 @@ impl Drop for Accel {
         assert!(err == cl_sys::CL_SUCCESS);
     }
 }
+
+macro_rules! vec {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x);
+            )*
+            temp_vec
+        }
+    };   
+}
+
+#[macro_export]
+macro_rules! run_kernel {
+    ($cl: expr, $($arg:expr),*) => {{
+        println!("Accel={:?}", $cl);
+        $(
+            println!("{:?}", $arg);
+        )*
+    }}
+}

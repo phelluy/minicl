@@ -1,3 +1,4 @@
+#[macro_use]
 extern crate minicl;
 
 fn main() {
@@ -35,9 +36,12 @@ fn main() {
     let w = cldev.unmap_buffer(w);
     println!("w={:?}",w);
 
-    println!("Accel={:?}", cldev);
+    run_kernel!(cldev,1,2,3);
 
     //std::mem::forget(v); // moche moche moche !
 
 }
+
+
+
 
