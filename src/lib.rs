@@ -9,7 +9,7 @@ pub struct Accel {
     program: cl_sys::cl_program,
     queue: cl_sys::cl_command_queue,
     kernels: HashMap<String, cl_sys::cl_kernel>,
-    buffers: HashMap<*mut cl_sys::c_void, (cl_sys::cl_mem, usize, usize)>,
+    buffers: HashMap<*mut cl_sys::c_void, (cl_sys::cl_mem, usize, usize, bool)>,
 }
 
 impl Accel {
@@ -183,11 +183,10 @@ impl Accel {
             !self.buffers.contains_key(&ptr0),
             "Buffer already registered."
         );
-        println!("ptr0 before cl buffer création: {:?}", ptr0);
         let n = v.len();
+        // leave deallocation duty to MiniCL
         std::mem::forget(v);
         let szf = std::mem::size_of::<T>();
-        println!("size={}", n * szf);
         let mut err: i32 = 0;
         let buffer: cl_sys::cl_mem = unsafe {
             cl_sys::clCreateBuffer(
@@ -199,8 +198,8 @@ impl Accel {
             )
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
-        println!("buffer={:?}", buffer);
-        self.buffers.insert(ptr0, (buffer, n * szf, szf));
+        let is_map = false;
+        self.buffers.insert(ptr0, (buffer, n * szf, szf, false));
         ptr0
     }
 
@@ -212,18 +211,17 @@ impl Accel {
             self.buffers.contains_key(&ptr0),
             "Buffer not yet registered."
         );
-        let (buffer, size, szf) = self.buffers.get(&ptr0).unwrap();
+        let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
+        self.buffers.remove(&ptr0).unwrap();
         println!("ptr0 before cl buffer création: {:?}", ptr0);
         let n = v.len();
         std::mem::forget(v);
         let szf = std::mem::size_of::<T>();
         println!("size={}", n * szf);
-        let mut err: i32 = 0;
-        let blocking = cl_sys::CL_TRUE;
         let err = unsafe {
             cl_sys::clEnqueueUnmapMemObject(
                 self.queue,
-                *buffer,
+                buffer,
                 ptr0,
                 0,
                 std::ptr::null(),
@@ -231,6 +229,8 @@ impl Accel {
             )
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
+        let is_map = false;
+        self.buffers.insert(ptr0,(buffer, size,szf, is_map));
         println!("buffer={:?}", buffer);
         //self.buffers.insert(ptr0, (buffer, n * szf, szf));
         ptr0
@@ -241,16 +241,16 @@ impl Accel {
         let blocking = cl_sys::CL_TRUE;
         let szf = std::mem::size_of::<T>();
         //let toto = self.buffers.get(&name).unwrap();
-        let (buffer, size, _) = self.buffers.get(&ptr0).unwrap();
-        println!("buffer={:?} size={} szf={}", *buffer, size, szf);
+        let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
+        println!("buffer={:?} size={} szf={}", buffer, size, szf);
         let ptr = unsafe {
             cl_sys::clEnqueueMapBuffer(
                 self.queue,
-                *buffer,
+                buffer,
                 blocking,
                 cl_sys::CL_MAP_READ,
                 0,
-                *size,
+                size,
                 0,
                 std::ptr::null(),
                 std::ptr::null_mut(),
@@ -258,6 +258,9 @@ impl Accel {
             )
         } as *mut T;
         assert_eq!(err, cl_sys::CL_SUCCESS);
+        self.buffers.remove(&ptr0);
+        let is_map = true;
+        self.buffers.insert(ptr0, (buffer, size,szf, is_map));
         let n = size / szf;
         println!("size={} szf={}", size, szf);
         assert!(size % szf == 0);
@@ -273,7 +276,8 @@ impl Accel {
     pub fn run_kernel(&mut self, kname: &String, ptr: *mut cl_sys::c_void) {
         let smem = std::mem::size_of::<cl_sys::cl_mem>();
         let kernel = self.kernels.get(kname).unwrap();
-        let (buffer, size, szf) = self.buffers.get(&ptr).unwrap();
+        let (buffer, size, szf, is_map) = self.buffers.get(&ptr).unwrap();
+        assert!(!is_map, "Buffer is mapped on the host");
         let szf = *szf;
         println!("buffer={:?} szf={}", *buffer, szf);
         let err = unsafe {
