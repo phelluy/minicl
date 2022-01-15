@@ -26,6 +26,7 @@ fn main() {
 
     let w : Vec<i32> = vec![11; 10];
     let w = cldev.register_buffer(w);
+    //let wt: Vec<i32> = cldev.map_buffer(w);
     cldev.run_kernel(&kname,w);
     //let w: Vec<i32> = cldev.map_buffer(w);
     println!("w={:?}",w);
