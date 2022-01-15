@@ -27,7 +27,7 @@ impl Accel {
         let err =
             unsafe { cl_sys::clGetPlatformIDs(nb_platforms, &mut platform[0], &mut nb_platforms) };
         assert_eq!(err, cl_sys::CL_SUCCESS);
-        use std::io::{stdin, stdout, Write};
+        use std::io::{stdin};
         let mut s = String::new();
         println!("Enter platform num.");
         stdin()
@@ -37,11 +37,22 @@ impl Accel {
         let numplat = input;
         assert!(numplat < nb_platforms as usize);
 
-        let mut size = 1000;
+        let mut size: usize = 0;
+        let err = unsafe {
+            cl_sys::clGetPlatformInfo(
+                platform[numplat],
+                cl_sys::CL_PLATFORM_VENDOR,
+                0,
+                std::ptr::null_mut(),
+                &mut size,
+            )
+        };
+        assert_eq!(err, cl_sys::CL_SUCCESS);
+        assert!(size > 0);
+        
         let platform_name = vec![1; size];
         let platform_name = String::from_utf8(platform_name).unwrap();
         let platform_name = std::ffi::CString::new(platform_name).unwrap();
-
         let err = unsafe {
             cl_sys::clGetPlatformInfo(
                 platform[numplat],
