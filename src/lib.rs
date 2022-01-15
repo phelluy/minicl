@@ -49,7 +49,7 @@ impl Accel {
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
         assert!(size > 0);
-        
+
         let platform_name = vec![1; size];
         let platform_name = String::from_utf8(platform_name).unwrap();
         let platform_name = std::ffi::CString::new(platform_name).unwrap();
@@ -324,10 +324,11 @@ impl Accel {
         let err = unsafe { cl_sys::clFinish(self.queue) };
         assert_eq!(err, cl_sys::CL_SUCCESS);
     }
-    // This trivial implementation of `drop` adds a print to console.
 }
+
 impl Drop for Accel {
     fn drop(&mut self) {
+        println!("MiniCL memory drop");
         for (ptr,(buffer,size,szf,is_map)) in self.buffers.iter() {
             if !is_map {
                 let n = size / szf;
@@ -344,13 +345,14 @@ impl Drop for Accel {
             assert!(err == cl_sys::CL_SUCCESS);
         }
         for (s,kernel) in self.kernels.iter() {
-            println!("free kernel {}",s);
+            println!("Free kernel {}",s);
             let err = unsafe {
                 cl_sys::clReleaseKernel(*kernel)
             };
             assert!(err == cl_sys::CL_SUCCESS);            
         }
 
+        println!("Free MiniCL env.");
         let err =
         unsafe {
             cl_sys::clReleaseCommandQueue(self.queue) |

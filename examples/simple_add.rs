@@ -10,8 +10,6 @@ fn main() {
 
     let mut cldev = minicl::Accel::new(source);
 
-    println!("Accel={:?}", cldev);
-
     let v : Vec<i32> = vec![12; 10];
 
     let kname = "simple_add".to_string();
@@ -35,6 +33,8 @@ fn main() {
     println!("w={:?}",w);
     let w = cldev.unmap_buffer(w);
     println!("w={:?}",w);
+
+    println!("Accel={:?}", cldev);
 
     //std::mem::forget(v); // moche moche moche !
 
