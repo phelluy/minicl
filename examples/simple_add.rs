@@ -3,14 +3,10 @@ extern crate minicl;
 fn main() {
 
 
-    println!("Simple kernel add example");
-
     let source = "__kernel  void simple_add(__global int *v){
         int i = get_global_id(0);
         v[i] += 12;
     }".to_string();
-
-
 
     let mut cldev = minicl::Accel::new(source);
 
@@ -36,6 +32,8 @@ fn main() {
     //let w: Vec<i32> = cldev.map_buffer(w);
     println!("w={:?}",w);
     let w: Vec<i32> = cldev.map_buffer(w);
+    println!("w={:?}",w);
+    let w = cldev.unmap_buffer(w);
     println!("w={:?}",w);
 
     //std::mem::forget(v); // moche moche moche !

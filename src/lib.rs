@@ -313,4 +313,40 @@ impl Accel {
         let err = unsafe { cl_sys::clFinish(self.queue) };
         assert_eq!(err, cl_sys::CL_SUCCESS);
     }
+    // This trivial implementation of `drop` adds a print to console.
+}
+impl Drop for Accel {
+    fn drop(&mut self) {
+        for (ptr,(buffer,size,szf,is_map)) in self.buffers.iter() {
+            if !is_map {
+                let n = size / szf;
+                assert!(size % szf == 0);
+                println!("Free buffer {:?}", ptr);
+                // give back the vector to Rust
+                // who will free the memory at the end
+                assert_eq!(std::mem::size_of::<u8>(), 1);
+                let _v: Vec<u8> = unsafe { Vec::from_raw_parts(*ptr as *mut u8, n*szf, n*szf) };        
+            }
+            let err = unsafe {
+                cl_sys::clReleaseMemObject(*buffer)
+            };
+            assert!(err == cl_sys::CL_SUCCESS);
+        }
+        for (s,kernel) in self.kernels.iter() {
+            println!("free kernel {}",s);
+            let err = unsafe {
+                cl_sys::clReleaseKernel(*kernel)
+            };
+            assert!(err == cl_sys::CL_SUCCESS);            
+        }
+
+        let err =
+        unsafe {
+            cl_sys::clReleaseCommandQueue(self.queue) |
+            cl_sys::clReleaseProgram(self.program) |
+            cl_sys::clReleaseDevice(self.device) |
+            cl_sys::clReleaseContext(self.context) 
+        };
+        assert!(err == cl_sys::CL_SUCCESS);
+    }
 }
