@@ -540,3 +540,50 @@ pub fn error_text(error_code: cl_sys::cl_int) -> &'static str {
         _ => "UNKNOWN_ERROR",
     }
 }
+
+
+// unit tests start
+#[test]
+fn test_init() {
+    let source = "__kernel  void simple_kernel0(){
+        int i = get_global_id(0);
+    }"
+    .to_string();
+
+    let dev = Accel::new(source, 0);
+    println!("{:?}",dev);
+}
+
+#[test]
+fn test_buffer() {
+    let source = "__kernel  void simple_kernel1(void){
+        int i = get_global_id(0);
+    }"
+    .to_string();
+
+    let mut dev = Accel::new(source, 0);
+    let v: Vec<i32> = vec![3;16];
+    let v0 = v.clone();
+    let v = dev.register_buffer(v);
+    let v = dev.map_buffer(v);
+    assert_eq!(v0,v);
+}
+
+#[test]
+fn test_kernel() {
+    let source = "__kernel  void simple_add(__global int *v, int x){
+        int i = get_global_id(0);
+        v[i] += x;
+    }"
+    .to_string();
+
+    let kernel_name = "simple_add".to_string();
+    let mut dev = Accel::new(source, 0);
+    let v: Vec<i32> = vec![3;16];
+    let vp: Vec<i32> = vec![6;16];
+    let v = dev.register_buffer(v);
+    let x = 3;
+    kernel_set_args_and_run!(dev, kernel_name,16,4,v,x);
+    let v = dev.map_buffer(v);
+    assert_eq!(vp,v);
+}
