@@ -35,6 +35,11 @@ fn main() {
     let v: Vec<i32> = cldev.map_buffer(v);
     println!("v={:?}",v);
 
+    let v = cldev.unmap_buffer(v);
+    run_kernel!(cldev, kname, globsize, locsize, v, x);
+    let v: Vec<i32> = cldev.map_buffer(v);
+    println!("v={:?}",v);
+
 
 }
 

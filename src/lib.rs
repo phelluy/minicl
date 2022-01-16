@@ -384,10 +384,17 @@ macro_rules! vec {
 
 #[macro_export]
 macro_rules! run_kernel {
-    ($cl: expr, $($arg:expr),*) => {{
-        println!("Accel={:?}", $cl);
+    ($dev: expr, $kname: expr, $globsize: expr, $locsize:expr, $($arg:expr),*) => {{
+        println!("Device={:?}", $dev);
+        println!("Kernel={:?}", $kname);
+        println!("Glob. size={:?}", $globsize);
+        println!("Loc. size={:?}", $locsize);
+        let mut count = 0;
         $(
-            println!("{:?}", $arg);
+            println!("Arg {} = {:?}", count,$arg);
+            $dev.set_kernel_arg(& $kname, count, & $arg);
+            count += 1;
         )*
+        $dev.run_kernel(& $kname, $globsize, $locsize);
     }}
 }
