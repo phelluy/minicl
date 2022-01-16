@@ -284,22 +284,40 @@ impl Accel {
         v
     }
 
-    pub fn run_kernel(&mut self, kname: &String, ptr: *mut cl_sys::c_void) {
-        let smem = std::mem::size_of::<cl_sys::cl_mem>();
+
+    pub fn set_kernel_arg<T: TrueArg>(&mut self, kname: &String, index: usize,arg: & T){
         let kernel = self.kernels.get(kname).unwrap();
-        let (buffer, size, szf, is_map) = self.buffers.get(&ptr).unwrap();
-        assert!(!is_map, "Buffer is mapped on the host");
-        let szf = *szf;
-        println!("buffer={:?} szf={}", *buffer, szf);
+        let smem = std::mem::size_of::<T>();
+        let targ = arg.true_arg(self);
         let err = unsafe {
             cl_sys::clSetKernelArg(
                 *kernel,
-                0,
+                index as u32,
                 smem,
-                buffer as *const _ as *const cl_sys::c_void,
+                targ,
             )
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
+    }
+
+    pub fn run_kernel(&mut self, kname: &String, ptr: *mut cl_sys::c_void) {
+        self.set_kernel_arg(kname, 0, &ptr);
+        // let smem = std::mem::size_of::<cl_sys::cl_mem>();
+         let kernel = self.kernels.get(kname).unwrap();
+        // let buffer = ptr.true_arg(self);
+        // assert!(!is_map, "Buffer is mapped on the host");
+        // println!("buffer={:?} szf={}", buffer, szf);
+        // let err = unsafe {
+        //     cl_sys::clSetKernelArg(
+        //         *kernel,
+        //         0,
+        //         smem,
+        //         &buffer as *const _ as *const cl_sys::c_void,
+        //     )
+        // };
+        // assert_eq!(err, cl_sys::CL_SUCCESS);
+        let (buffer, size, szf, is_map) = self.buffers.get(&ptr).unwrap();
+        let szf = *szf;
         let n = size / szf;
         assert!(size % szf == 0);
 
@@ -363,6 +381,21 @@ impl Drop for Accel {
         assert!(err == cl_sys::CL_SUCCESS);
     }
 }
+
+pub trait TrueArg {
+    fn true_arg(&self, dev: &Accel) -> *const cl_sys::c_void {
+        self as *const _ as *const cl_sys::c_void
+    }
+}
+
+impl TrueArg for *mut cl_sys::c_void {
+    fn true_arg(&self, dev: &Accel) -> *const cl_sys::c_void {
+        let (buffer, _size, _szf, is_map) = dev.buffers.get(self).unwrap();
+        assert!(!is_map, "Buffer is mapped on the host");
+        buffer as *const _ as *const cl_sys::c_void
+    }
+}
+
 
 macro_rules! vec {
     ( $( $x:expr ),* ) => {
