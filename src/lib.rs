@@ -461,11 +461,11 @@ macro_rules! kernel_set_args_and_run {
         // println!("Kernel={:?}", $kname);
         // println!("Glob. size={:?}", $globsize);
         // println!("Loc. size={:?}", $locsize);
-        let mut count = 0;
+        let mut count = -1;
         $(
             // println!("Arg {} = {:?}", count,$arg);
-            $dev.set_kernel_arg(& $kname, count, & $arg);
-            count += 1;
+            count +=1;
+            $dev.set_kernel_arg(& $kname, count as usize, & $arg);
         )*
         $dev.run_kernel(& $kname, $globsize, $locsize);
     }}
@@ -543,7 +543,7 @@ pub fn error_text(error_code: cl_sys::cl_int) -> &'static str {
 }
 
 
-// unit tests start
+// some unit tests
 #[test]
 fn test_init() {
     let source = "__kernel  void simple_kernel(){
