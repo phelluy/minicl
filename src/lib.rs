@@ -222,7 +222,7 @@ impl Accel {
         let kernel: cl_sys::cl_kernel =
             unsafe { cl_sys::clCreateKernel(self.program, cname.as_ptr(), &mut err) };
         assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
-        println!("kernel={:?}", kernel);
+        //println!("kernel={:?}", kernel);
         self.kernels.insert(name.clone(), kernel);
     }
 
@@ -277,7 +277,7 @@ impl Accel {
         assert!(is_map);
         //let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
         self.buffers.remove(&ptr0).unwrap();
-        println!("ptr0 before cl buffer création: {:?}", ptr0);
+        //println!("ptr0 before cl buffer création: {:?}", ptr0);
         //let n = v.len();
         std::mem::forget(v);
         // let szf = std::mem::size_of::<T>();
@@ -315,7 +315,7 @@ impl Accel {
         let is_map = tup.3;
         assert!(!is_map, "Buffer already mapped.");
         //let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
-        println!("buffer={:?} size={} szf={}", buffer, size, szf);
+        //println!("buffer={:?} size={} szf={}", buffer, size, szf);
         let ptr = unsafe {
             cl_sys::clEnqueueMapBuffer(
                 self.queue,
@@ -335,10 +335,10 @@ impl Accel {
         let is_map = true;
         self.buffers.insert(ptr0, (buffer, size, szf, is_map));
         let n = size / szf;
-        println!("size={} szf={}", size, szf);
+        //println!("size={} szf={}", size, szf);
         assert!(size % szf == 0);
-        println!("ptr0 before cl map: {:?}", ptr0);
-        println!("ptr after cl map: {:?}", ptr);
+        //println!("ptr0 before cl map: {:?}", ptr0);
+        //println!("ptr after cl map: {:?}", ptr);
         assert_eq!(ptr, ptr0 as *mut T);
         let v: Vec<T> = unsafe { Vec::from_raw_parts(ptr, n, n) };
         // take possession of the memory
@@ -456,13 +456,13 @@ impl TrueArg for f64 {}
 #[macro_export]
 macro_rules! kernel_set_args_and_run {
     ($dev: expr, $kname: expr, $globsize: expr, $locsize:expr, $($arg:expr),*) => {{
-        println!("Device={:?}", $dev);
-        println!("Kernel={:?}", $kname);
-        println!("Glob. size={:?}", $globsize);
-        println!("Loc. size={:?}", $locsize);
+        // println!("Device={:?}", $dev);
+        // println!("Kernel={:?}", $kname);
+        // println!("Glob. size={:?}", $globsize);
+        // println!("Loc. size={:?}", $locsize);
         let mut count = 0;
         $(
-            println!("Arg {} = {:?}", count,$arg);
+            // println!("Arg {} = {:?}", count,$arg);
             $dev.set_kernel_arg(& $kname, count, & $arg);
             count += 1;
         )*
