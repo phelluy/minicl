@@ -65,13 +65,13 @@ impl Accel {
         let mut nb_platforms: u32 = 0;
         let mut device: cl_sys::cl_device_id = std::ptr::null_mut();
         let err = unsafe { cl_sys::clGetPlatformIDs(0, std::ptr::null_mut(), &mut nb_platforms) };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
         println!("Found {} platform(s)", nb_platforms);
         assert!(10 > nb_platforms);
         let mut platform = [platform; 10];
         let err =
             unsafe { cl_sys::clGetPlatformIDs(nb_platforms, &mut platform[0], &mut nb_platforms) };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "OpenCL error: {}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "OpenCL error: {}", error_text(err));
 
         assert!(numplat < nb_platforms as usize);
         let mut size: usize = 0;
@@ -84,7 +84,7 @@ impl Accel {
                 &mut size,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "OpenCL error: {}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "OpenCL error: {}", error_text(err));
         assert!(size > 0);
 
         let platform_name = vec![1; size];
@@ -99,7 +99,7 @@ impl Accel {
                 &mut size,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "OpenCL error: {}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "OpenCL error: {}", error_text(err));
         let platform_name = unsafe {
             std::ffi::CStr::from_ptr(platform_name.as_ptr())
                 .to_string_lossy()
@@ -117,7 +117,7 @@ impl Accel {
                 &mut temp,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
 
         let mut err: i32 = 0;
         let context = unsafe {
@@ -130,7 +130,7 @@ impl Accel {
                 &mut err,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
 
         let mut err: i32 = 0;
         let queue = unsafe {
@@ -141,7 +141,7 @@ impl Accel {
                 &mut err,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
 
         let mut err: i32 = 0;
         let oclsources = [oclsource.as_str()];
@@ -154,7 +154,7 @@ impl Accel {
                 &mut err,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
 
         let opt = std::ffi::CString::new("-w").unwrap();
         let log: *mut cl_sys::c_void = std::ptr::null_mut();
@@ -172,7 +172,7 @@ impl Accel {
                 &mut size,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
         println!("Size of build log: {}", size);
         // then get the build log
         let log = vec![1; size];
@@ -190,7 +190,7 @@ impl Accel {
                 &mut size,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
         let log = unsafe {
             std::ffi::CStr::from_ptr(log.as_ptr())
                 .to_string_lossy()
@@ -199,7 +199,7 @@ impl Accel {
         println!("Build messages:\n-------------------------------------");
         println!("{}", log);
         println!("-------------------------------------");
-        assert_eq!(errb, cl_sys::CL_SUCCESS, "{}",error_text(errb));
+        assert_eq!(errb, cl_sys::CL_SUCCESS, "{}", error_text(errb));
 
         Accel {
             context,
@@ -221,7 +221,7 @@ impl Accel {
         let cname = std::ffi::CString::new(name.clone()).unwrap();
         let kernel: cl_sys::cl_kernel =
             unsafe { cl_sys::clCreateKernel(self.program, cname.as_ptr(), &mut err) };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
         println!("kernel={:?}", kernel);
         self.kernels.insert(name.clone(), kernel);
     }
@@ -253,7 +253,7 @@ impl Accel {
                 &mut err,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
         let is_map = false;
         self.buffers.insert(ptr0, (buffer, n * szf, szf, is_map));
         ptr0
@@ -292,7 +292,7 @@ impl Accel {
                 std::ptr::null_mut(),
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
         let is_map = false;
         self.buffers.insert(ptr0, (buffer, size, szf, is_map));
         //println!("buffer={:?}", buffer);
@@ -330,7 +330,7 @@ impl Accel {
                 &mut err,
             )
         } as *mut T;
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
         self.buffers.remove(&ptr0);
         let is_map = true;
         self.buffers.insert(ptr0, (buffer, size, szf, is_map));
@@ -355,7 +355,7 @@ impl Accel {
         let smem = std::mem::size_of::<T>();
         let targ = arg.true_arg(self);
         let err = unsafe { cl_sys::clSetKernelArg(*kernel, index as u32, smem, targ) };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
     }
 
     /// Runs a kernel with given global size and local size.
@@ -380,10 +380,10 @@ impl Accel {
                 std::ptr::null_mut(),
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
 
         let err = unsafe { cl_sys::clFinish(self.queue) };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
     }
 }
 
@@ -404,12 +404,12 @@ impl Drop for Accel {
                 let _v: Vec<u8> = unsafe { Vec::from_raw_parts(*ptr as *mut u8, n * szf, n * szf) };
             }
             let err = unsafe { cl_sys::clReleaseMemObject(*buffer) };
-            assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+            assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
         }
         for (s, kernel) in self.kernels.iter() {
             println!("Free kernel {}", s);
             let err = unsafe { cl_sys::clReleaseKernel(*kernel) };
-            assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+            assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
         }
 
         println!("Free MiniCL env.");
@@ -419,7 +419,7 @@ impl Drop for Accel {
                 | cl_sys::clReleaseDevice(self.device)
                 | cl_sys::clReleaseContext(self.context)
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS,"{}",error_text(err));
+        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
     }
 }
 
@@ -470,7 +470,6 @@ macro_rules! kernel_set_args_and_run {
     }}
 }
 
-
 pub fn error_text(error_code: cl_sys::cl_int) -> &'static str {
     match error_code {
         cl_sys::CL_SUCCESS => "CL_SUCCESS",
@@ -487,13 +486,14 @@ pub fn error_text(error_code: cl_sys::cl_int) -> &'static str {
         cl_sys::CL_BUILD_PROGRAM_FAILURE => "CL_BUILD_PROGRAM_FAILURE",
         cl_sys::CL_MAP_FAILURE => "CL_MAP_FAILURE",
         cl_sys::CL_MISALIGNED_SUB_BUFFER_OFFSET => "CL_MISALIGNED_SUB_BUFFER_OFFSET",
-        cl_sys::CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST => "CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST",
+        cl_sys::CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST => {
+            "CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST"
+        }
         cl_sys::CL_COMPILE_PROGRAM_FAILURE => "CL_COMPILE_PROGRAM_FAILURE",
         cl_sys::CL_LINKER_NOT_AVAILABLE => "CL_LINKER_NOT_AVAILABLE",
         cl_sys::CL_LINK_PROGRAM_FAILURE => "CL_LINK_PROGRAM_FAILURE",
         cl_sys::CL_DEVICE_PARTITION_FAILED => "CL_DEVICE_PARTITION_FAILED",
         cl_sys::CL_KERNEL_ARG_INFO_NOT_AVAILABLE => "CL_KERNEL_ARG_INFO_NOT_AVAILABLE",
-
         cl_sys::CL_INVALID_VALUE => "CL_INVALID_VALUE",
         cl_sys::CL_INVALID_DEVICE_TYPE => "CL_INVALID_DEVICE_TYPE",
         cl_sys::CL_INVALID_PLATFORM => "CL_INVALID_PLATFORM",
@@ -535,12 +535,8 @@ pub fn error_text(error_code: cl_sys::cl_int) -> &'static str {
         cl_sys::CL_INVALID_DEVICE_PARTITION_COUNT => "CL_INVALID_DEVICE_PARTITION_COUNT",
         cl_sys::CL_INVALID_PIPE_SIZE => "CL_INVALID_PIPE_SIZE",
         cl_sys::CL_INVALID_DEVICE_QUEUE => "CL_INVALID_DEVICE_QUEUE",
-
         cl_sys::CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR => "CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR",
         cl_sys::CL_PLATFORM_NOT_FOUND_KHR => "CL_PLATFORM_NOT_FOUND_KHR",
-
         _ => "UNKNOWN_ERROR",
     }
-
-
 }
