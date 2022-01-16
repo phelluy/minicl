@@ -292,20 +292,12 @@ impl Accel {
         assert_eq!(err, cl_sys::CL_SUCCESS);
     }
 
-    pub fn run_kernel(&mut self, kname: &String, ptr: *mut cl_sys::c_void) {
-        self.set_kernel_arg(kname, 0, &ptr);
-        let x: i32 = 1000;
-        self.set_kernel_arg(kname, 1, &x);
+    pub fn run_kernel(&mut self, kname: &String, globsize: usize, locsize: usize) {
 
         let kernel = self.kernels.get(kname).unwrap();
 
-        let (_buffer, size, szf, _is_map) = self.buffers.get(&ptr).unwrap();
-        let szf = *szf;
-        let n = size / szf;
-        assert!(size % szf == 0);
+        assert!(globsize % locsize == 0);
 
-        let global_size = n;
-        let local_size = n;
         let offset = 0;
         let err = unsafe {
             cl_sys::clEnqueueNDRangeKernel(
@@ -313,8 +305,8 @@ impl Accel {
                 *kernel,
                 1,
                 &offset,
-                &global_size,
-                &local_size,
+                &globsize,
+                &locsize,
                 0,
                 std::ptr::null(),
                 std::ptr::null_mut(),

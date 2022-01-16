@@ -11,34 +11,26 @@ fn main() {
 
     let mut cldev = minicl::Accel::new(source);
 
-    let v : Vec<i32> = vec![12; 10];
+    let n = 64;
+
+    let v : Vec<i32> = vec![12; n];
 
     let kname = "simple_add".to_string();
     cldev.register_kernel(&kname);
     let v = cldev.register_buffer(v);
-    cldev.run_kernel(&kname,v);
+
+    let x: i32 = 1000;
+    
+    cldev.set_kernel_arg(&kname, 0, &v);
+    cldev.set_kernel_arg(&kname, 1, &x);
+
+    let globsize = n;
+    let locsize= 16;
+ 
+    cldev.run_kernel(&kname,globsize,locsize);
     let v: Vec<i32> = cldev.map_buffer(v);
     println!("v={:?}",v);
 
-    let v = cldev.unmap_buffer(v);
-    cldev.run_kernel(&kname,v);
-    let v: Vec<i32> = cldev.map_buffer(v);
-    println!("v={:?}",v);
-
-    let w : Vec<i32> = vec![11; 10];
-    let w = cldev.register_buffer(w);
-    //let wt: Vec<i32> = cldev.map_buffer(w);
-    cldev.run_kernel(&kname,w);
-    //let w: Vec<i32> = cldev.map_buffer(w);
-    println!("w={:?}",w);
-    let w: Vec<i32> = cldev.map_buffer(w);
-    println!("w={:?}",w);
-    let w = cldev.unmap_buffer(w);
-    println!("w={:?}",w);
-
-    run_kernel!(cldev,1,2,3);
-
-    //std::mem::forget(v); // moche moche moche !
 
 }
 
