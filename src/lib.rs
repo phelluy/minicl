@@ -27,7 +27,7 @@ impl Accel {
         let err =
             unsafe { cl_sys::clGetPlatformIDs(nb_platforms, &mut platform[0], &mut nb_platforms) };
         assert_eq!(err, cl_sys::CL_SUCCESS);
-        use std::io::{stdin};
+        use std::io::stdin;
         let mut s = String::new();
         println!("Enter platform num.");
         stdin()
@@ -241,7 +241,7 @@ impl Accel {
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
         let is_map = false;
-        self.buffers.insert(ptr0,(buffer, size,szf, is_map));
+        self.buffers.insert(ptr0, (buffer, size, szf, is_map));
         println!("buffer={:?}", buffer);
         //self.buffers.insert(ptr0, (buffer, n * szf, szf));
         ptr0
@@ -271,7 +271,7 @@ impl Accel {
         assert_eq!(err, cl_sys::CL_SUCCESS);
         self.buffers.remove(&ptr0);
         let is_map = true;
-        self.buffers.insert(ptr0, (buffer, size,szf, is_map));
+        self.buffers.insert(ptr0, (buffer, size, szf, is_map));
         let n = size / szf;
         println!("size={} szf={}", size, szf);
         assert!(size % szf == 0);
@@ -284,39 +284,22 @@ impl Accel {
         v
     }
 
-
-    pub fn set_kernel_arg<T: TrueArg>(&mut self, kname: &String, index: usize,arg: & T){
+    pub fn set_kernel_arg<T: TrueArg>(&mut self, kname: &String, index: usize, arg: &T) {
         let kernel = self.kernels.get(kname).unwrap();
         let smem = std::mem::size_of::<T>();
         let targ = arg.true_arg(self);
-        let err = unsafe {
-            cl_sys::clSetKernelArg(
-                *kernel,
-                index as u32,
-                smem,
-                targ,
-            )
-        };
+        let err = unsafe { cl_sys::clSetKernelArg(*kernel, index as u32, smem, targ) };
         assert_eq!(err, cl_sys::CL_SUCCESS);
     }
 
     pub fn run_kernel(&mut self, kname: &String, ptr: *mut cl_sys::c_void) {
         self.set_kernel_arg(kname, 0, &ptr);
-        // let smem = std::mem::size_of::<cl_sys::cl_mem>();
-         let kernel = self.kernels.get(kname).unwrap();
-        // let buffer = ptr.true_arg(self);
-        // assert!(!is_map, "Buffer is mapped on the host");
-        // println!("buffer={:?} szf={}", buffer, szf);
-        // let err = unsafe {
-        //     cl_sys::clSetKernelArg(
-        //         *kernel,
-        //         0,
-        //         smem,
-        //         &buffer as *const _ as *const cl_sys::c_void,
-        //     )
-        // };
-        // assert_eq!(err, cl_sys::CL_SUCCESS);
-        let (buffer, size, szf, is_map) = self.buffers.get(&ptr).unwrap();
+        let x: i32 = 1000;
+        self.set_kernel_arg(kname, 1, &x);
+
+        let kernel = self.kernels.get(kname).unwrap();
+
+        let (_buffer, size, szf, _is_map) = self.buffers.get(&ptr).unwrap();
         let szf = *szf;
         let n = size / szf;
         assert!(size % szf == 0);
@@ -347,7 +330,7 @@ impl Accel {
 impl Drop for Accel {
     fn drop(&mut self) {
         println!("MiniCL memory drop");
-        for (ptr,(buffer,size,szf,is_map)) in self.buffers.iter() {
+        for (ptr, (buffer, size, szf, is_map)) in self.buffers.iter() {
             if !is_map {
                 let n = size / szf;
                 assert!(size % szf == 0);
@@ -355,28 +338,23 @@ impl Drop for Accel {
                 // give back the vector to Rust
                 // who will free the memory at the end
                 assert_eq!(std::mem::size_of::<u8>(), 1);
-                let _v: Vec<u8> = unsafe { Vec::from_raw_parts(*ptr as *mut u8, n*szf, n*szf) };        
+                let _v: Vec<u8> = unsafe { Vec::from_raw_parts(*ptr as *mut u8, n * szf, n * szf) };
             }
-            let err = unsafe {
-                cl_sys::clReleaseMemObject(*buffer)
-            };
+            let err = unsafe { cl_sys::clReleaseMemObject(*buffer) };
             assert!(err == cl_sys::CL_SUCCESS);
         }
-        for (s,kernel) in self.kernels.iter() {
-            println!("Free kernel {}",s);
-            let err = unsafe {
-                cl_sys::clReleaseKernel(*kernel)
-            };
-            assert!(err == cl_sys::CL_SUCCESS);            
+        for (s, kernel) in self.kernels.iter() {
+            println!("Free kernel {}", s);
+            let err = unsafe { cl_sys::clReleaseKernel(*kernel) };
+            assert!(err == cl_sys::CL_SUCCESS);
         }
 
         println!("Free MiniCL env.");
-        let err =
-        unsafe {
-            cl_sys::clReleaseCommandQueue(self.queue) |
-            cl_sys::clReleaseProgram(self.program) |
-            cl_sys::clReleaseDevice(self.device) |
-            cl_sys::clReleaseContext(self.context) 
+        let err = unsafe {
+            cl_sys::clReleaseCommandQueue(self.queue)
+                | cl_sys::clReleaseProgram(self.program)
+                | cl_sys::clReleaseDevice(self.device)
+                | cl_sys::clReleaseContext(self.context)
         };
         assert!(err == cl_sys::CL_SUCCESS);
     }
@@ -396,6 +374,9 @@ impl TrueArg for *mut cl_sys::c_void {
     }
 }
 
+impl TrueArg for i32 {
+
+}
 
 macro_rules! vec {
     ( $( $x:expr ),* ) => {
@@ -406,7 +387,7 @@ macro_rules! vec {
             )*
             temp_vec
         }
-    };   
+    };
 }
 
 #[macro_export]

@@ -4,9 +4,9 @@ extern crate minicl;
 fn main() {
 
 
-    let source = "__kernel  void simple_add(__global int *v){
+    let source = "__kernel  void simple_add(__global int *v, int x){
         int i = get_global_id(0);
-        v[i] += 12;
+        v[i] += x;
     }".to_string();
 
     let mut cldev = minicl::Accel::new(source);
