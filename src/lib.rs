@@ -144,12 +144,13 @@ impl Accel {
         assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
 
         let mut err: i32 = 0;
-        let oclsources = [oclsource.as_str()];
+        let oclsource = std::ffi::CString::new(oclsource).unwrap();
+        //let oclsources = [oclsource.as_ptr()];
         let program = unsafe {
             cl_sys::clCreateProgramWithSource(
                 context,
                 1,
-                oclsources.as_ptr() as *const *const cl_sys::libc::c_char,
+                &(oclsource.as_ptr()) as *const *const cl_sys::libc::c_char,
                 std::ptr::null(),
                 &mut err,
             )
@@ -545,7 +546,7 @@ pub fn error_text(error_code: cl_sys::cl_int) -> &'static str {
 // unit tests start
 #[test]
 fn test_init() {
-    let source = "__kernel  void simple_kernel0(){
+    let source = "__kernel  void simple_kernel(){
         int i = get_global_id(0);
     }"
     .to_string();
@@ -556,7 +557,7 @@ fn test_init() {
 
 #[test]
 fn test_buffer() {
-    let source = "__kernel  void simple_kernel1(void){
+    let source = "__kernel  void simple_kernel(void){
         int i = get_global_id(0);
     }"
     .to_string();
@@ -579,6 +580,7 @@ fn test_kernel() {
 
     let kernel_name = "simple_add".to_string();
     let mut dev = Accel::new(source, 0);
+    dev.register_kernel(&kernel_name);
     let v: Vec<i32> = vec![3;16];
     let vp: Vec<i32> = vec![6;16];
     let v = dev.register_buffer(v);
