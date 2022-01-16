@@ -1,9 +1,56 @@
-/// Minimal GPU compute library, based on OpenCL
+/// Minimal GPU compute library, based on OpenCL.
+/// All the OpenCL things (device, context, buffers, etc.)
+///  are packed into a single Accelerator struct.
+///  With normal use, this library should prevent memory leaks
+/// and most unsafety related to OpenCL.
+/// #Example
+/// ```
+///let source = "__kernel  void simple_add(__global int *v, int x){
+///int i = get_global_id(0);
+///v[i] += x;
+///}"
+///.to_string();
+///let num_platform = 0;
+///let mut cldev = minicl::Accel::new(source, num_platform);
+///
+///// the used kernels has to be registered
+///let kname = "simple_add".to_string();
+///cldev.register_kernel(&kname);
+///
+///let n = 64;
+///
+///// the memory buffer shared with the
+///// accelerator has to be registered
+///let v: Vec<i32> = vec![12; n];
+///let v = cldev.register_buffer(v);
+///
+///let x: i32 = 1000;
+///let globsize = n;
+///let locsize = 16;
+///
+///// invoke this macro for the first kernel call
+///minicl::kernel_set_args_and_run!(cldev, kname, globsize, locsize, v, x);
+///
+///// map the buffer for access from the host
+///let v: Vec<i32> = cldev.map_buffer(v);
+///println!("First kernel run v={:?}", v);
+///
+///// unmap for giving it back to the device
+///let v = cldev.unmap_buffer(v);
+///
+///// next call: no need to redefine the kernel args
+///// if they are the same
+///cldev.run_kernel(&kname, globsize, locsize);
+///
+///let v: Vec<i32> = cldev.map_buffer(v);
+///println!("Next kernel run v={:?}", v);
+///
+/// ```
 use std::collections::HashMap;
 #[derive(Debug)]
 pub struct Accel {
-    source: String,
-    platform: cl_sys::cl_platform_id,
+    // source: String,
+    // platform: cl_sys::cl_platform_id,
     context: cl_sys::cl_context,
     device: cl_sys::cl_device_id,
     program: cl_sys::cl_program,
@@ -14,8 +61,8 @@ pub struct Accel {
 
 impl Accel {
     /// Generate a minicl environment
-    /// from an OpenCL source code
-    pub fn new(oclsource: String) -> Accel {
+    /// from an OpenCL source code and a platform id
+    pub fn new(oclsource: String, numplat: usize) -> Accel {
         let platform: cl_sys::cl_platform_id = std::ptr::null_mut();
         let mut nb_platforms: u32 = 0;
         let mut device: cl_sys::cl_device_id = std::ptr::null_mut();
@@ -27,14 +74,14 @@ impl Accel {
         let err =
             unsafe { cl_sys::clGetPlatformIDs(nb_platforms, &mut platform[0], &mut nb_platforms) };
         assert_eq!(err, cl_sys::CL_SUCCESS);
-        use std::io::stdin;
-        let mut s = String::new();
-        println!("Enter platform num.");
-        stdin()
-            .read_line(&mut s)
-            .expect("Did not enter a correct string");
-        let input: usize = s.trim().parse().expect("Wanted a number");
-        let numplat = input;
+        // use std::io::stdin;
+        // let mut s = String::new();
+        // println!("Enter platform num.");
+        // stdin()
+        //     .read_line(&mut s)
+        //     .expect("Did not enter a correct string");
+        // let input: usize = s.trim().parse().expect("Wanted a number");
+        // let numplat = input;
         assert!(numplat < nb_platforms as usize);
 
         let mut size: usize = 0;
@@ -165,8 +212,8 @@ impl Accel {
         assert_eq!(errb, cl_sys::CL_SUCCESS, "Build failure");
 
         Accel {
-            source: oclsource,
-            platform: platform[numplat],
+            // source: oclsource,
+            // platform: platform[numplat],
             context,
             device,
             program,
@@ -210,7 +257,7 @@ impl Accel {
         };
         assert_eq!(err, cl_sys::CL_SUCCESS);
         let is_map = false;
-        self.buffers.insert(ptr0, (buffer, n * szf, szf, false));
+        self.buffers.insert(ptr0, (buffer, n * szf, szf, is_map));
         ptr0
     }
 
@@ -222,13 +269,19 @@ impl Accel {
             self.buffers.contains_key(&ptr0),
             "Buffer not yet registered."
         );
-        let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
+        let tup = self.buffers.get(&ptr0).unwrap();
+        let buffer = tup.0;
+        let size = tup.1;
+        let szf = tup.2;
+        let is_map = tup.3;
+        assert!(is_map);
+        //let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
         self.buffers.remove(&ptr0).unwrap();
         println!("ptr0 before cl buffer création: {:?}", ptr0);
-        let n = v.len();
+        //let n = v.len();
         std::mem::forget(v);
-        let szf = std::mem::size_of::<T>();
-        println!("size={}", n * szf);
+        // let szf = std::mem::size_of::<T>();
+        // println!("size={}", n * szf);
         let err = unsafe {
             cl_sys::clEnqueueUnmapMemObject(
                 self.queue,
@@ -242,7 +295,7 @@ impl Accel {
         assert_eq!(err, cl_sys::CL_SUCCESS);
         let is_map = false;
         self.buffers.insert(ptr0, (buffer, size, szf, is_map));
-        println!("buffer={:?}", buffer);
+        //println!("buffer={:?}", buffer);
         //self.buffers.insert(ptr0, (buffer, n * szf, szf));
         ptr0
     }
@@ -250,9 +303,15 @@ impl Accel {
     pub fn map_buffer<T>(&mut self, ptr0: *mut cl_sys::c_void) -> Vec<T> {
         let mut err = 0;
         let blocking = cl_sys::CL_TRUE;
-        let szf = std::mem::size_of::<T>();
+        //let szf = std::mem::size_of::<T>();
         //let toto = self.buffers.get(&name).unwrap();
-        let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
+        let tup = self.buffers.get(&ptr0).unwrap();
+        let buffer = tup.0;
+        let size = tup.1;
+        let szf = tup.2;
+        let is_map = tup.3;
+        assert!(!is_map);
+        //let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
         println!("buffer={:?} size={} szf={}", buffer, size, szf);
         let ptr = unsafe {
             cl_sys::clEnqueueMapBuffer(
@@ -353,7 +412,7 @@ impl Drop for Accel {
 }
 
 pub trait TrueArg {
-    fn true_arg(&self, dev: &Accel) -> *const cl_sys::c_void {
+    fn true_arg(&self, _dev: &Accel) -> *const cl_sys::c_void {
         self as *const _ as *const cl_sys::c_void
     }
 }
