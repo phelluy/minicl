@@ -1,5 +1,5 @@
 # minicl
-Minimal compute library, in the spirit of OpenCL
+Minimal compute library for accessing OpenCL from Rust.
 
 With normal use, this library should prevent memory leaks
  and most unsafety related to OpenCL.
