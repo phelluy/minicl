@@ -49,8 +49,6 @@ use std::collections::HashMap;
 /// ```
 #[derive(Debug)]
 pub struct Accel {
-    // source: String,
-    // platform: cl_sys::cl_platform_id,
     context: cl_sys::cl_context,
     device: cl_sys::cl_device_id,
     program: cl_sys::cl_program,
@@ -60,8 +58,8 @@ pub struct Accel {
 }
 
 impl Accel {
-    /// Generate a minicl environment
-    /// from an OpenCL source code and a platform id
+    /// Generates a minicl environment
+    /// from an OpenCL source code and a platform id.
     pub fn new(oclsource: String, numplat: usize) -> Accel {
         let platform: cl_sys::cl_platform_id = std::ptr::null_mut();
         let mut nb_platforms: u32 = 0;
@@ -73,17 +71,9 @@ impl Accel {
         let mut platform = [platform; 10];
         let err =
             unsafe { cl_sys::clGetPlatformIDs(nb_platforms, &mut platform[0], &mut nb_platforms) };
-        assert_eq!(err, cl_sys::CL_SUCCESS);
-        // use std::io::stdin;
-        // let mut s = String::new();
-        // println!("Enter platform num.");
-        // stdin()
-        //     .read_line(&mut s)
-        //     .expect("Did not enter a correct string");
-        // let input: usize = s.trim().parse().expect("Wanted a number");
-        // let numplat = input;
-        assert!(numplat < nb_platforms as usize);
+        assert_eq!(err, cl_sys::CL_SUCCESS, "OpenCL error: {}",error_text(err));
 
+        //assert!(numplat < nb_platforms as usize);
         let mut size: usize = 0;
         let err = unsafe {
             cl_sys::clGetPlatformInfo(
@@ -94,7 +84,7 @@ impl Accel {
                 &mut size,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS);
+        assert_eq!(err, cl_sys::CL_SUCCESS, "OpenCL error: {}",error_text(err));
         assert!(size > 0);
 
         let platform_name = vec![1; size];
@@ -212,8 +202,6 @@ impl Accel {
         assert_eq!(errb, cl_sys::CL_SUCCESS, "Build failure");
 
         Accel {
-            // source: oclsource,
-            // platform: platform[numplat],
             context,
             device,
             program,
@@ -223,7 +211,12 @@ impl Accel {
         }
     }
 
+    /// Registers a kernel, before it can be called.
     pub fn register_kernel(&mut self, name: &String) {
+        assert!(
+            !self.kernels.contains_key(name),
+            "Kernel already registered."
+        );
         let mut err: i32 = 0;
         let cname = std::ffi::CString::new(name.clone()).unwrap();
         let kernel: cl_sys::cl_kernel =
@@ -233,6 +226,11 @@ impl Accel {
         self.kernels.insert(name.clone(), kernel);
     }
 
+    /// Registers a buffer before it can be passed to a kernel.
+    /// The buffer is automatically copied on the device. The memory is
+    /// managed by OpenCL until the next map.
+    /// It can not be accessed by the host until the next map.
+    /// Returns a pointer to the memory zone managed by OpenCL.
     pub fn register_buffer<T>(&mut self, mut v: Vec<T>) -> *mut cl_sys::c_void {
         v.shrink_to_fit();
         assert!(v.len() == v.capacity());
@@ -261,6 +259,8 @@ impl Accel {
         ptr0
     }
 
+    /// Unmaps back to the device a buffer mapped on the host.
+    /// The buffer must have been registered before.
     pub fn unmap_buffer<T>(&mut self, mut v: Vec<T>) -> *mut cl_sys::c_void {
         v.shrink_to_fit();
         assert!(v.len() == v.capacity());
@@ -300,6 +300,9 @@ impl Accel {
         ptr0
     }
 
+    /// Maps a buffer from the device to the host.
+    /// Must be called before any access to the buffer
+    /// from the host side.
     pub fn map_buffer<T>(&mut self, ptr0: *mut cl_sys::c_void) -> Vec<T> {
         let mut err = 0;
         let blocking = cl_sys::CL_TRUE;
@@ -310,7 +313,7 @@ impl Accel {
         let size = tup.1;
         let szf = tup.2;
         let is_map = tup.3;
-        assert!(!is_map);
+        assert!(!is_map, "Buffer already mapped.");
         //let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
         println!("buffer={:?} size={} szf={}", buffer, size, szf);
         let ptr = unsafe {
@@ -343,6 +346,10 @@ impl Accel {
         v
     }
 
+    /// Defines kernel args value/location before kernel call.
+    /// The args must implement the TrueArg traits, which converts
+    /// the Rust arg type to the corresponding OpenCL type, with the
+    /// same size.
     pub fn set_kernel_arg<T: TrueArg>(&mut self, kname: &String, index: usize, arg: &T) {
         let kernel = self.kernels.get(kname).unwrap();
         let smem = std::mem::size_of::<T>();
@@ -351,8 +358,10 @@ impl Accel {
         assert_eq!(err, cl_sys::CL_SUCCESS);
     }
 
+    /// Runs a kernel with given global size and local size.
+    /// Before calling this function, it is necessay to set the kernel args.
+    /// This can be achievd with the macro kernel_set_args_and_run
     pub fn run_kernel(&mut self, kname: &String, globsize: usize, locsize: usize) {
-
         let kernel = self.kernels.get(kname).unwrap();
 
         assert!(globsize % locsize == 0);
@@ -378,6 +387,9 @@ impl Accel {
     }
 }
 
+/// OpenCL memory is managed in a C-like fashion.
+/// All the buffers which have not yet been mapped back to the
+/// host must be carefully given back to Rust.
 impl Drop for Accel {
     fn drop(&mut self) {
         println!("MiniCL memory drop");
@@ -411,12 +423,18 @@ impl Drop for Accel {
     }
 }
 
+/// Pointer type conversion from Rust type to C type.
+/// For most cases, the default conversion is OK: simply
+/// converts the ref to a C void pointer.
 pub trait TrueArg {
     fn true_arg(&self, _dev: &Accel) -> *const cl_sys::c_void {
         self as *const _ as *const cl_sys::c_void
     }
 }
 
+/// Pointer conversion for buffer. We provide aditional
+/// checks for better safety: the buffer must be registered
+/// and not currently mapped to the host.
 impl TrueArg for *mut cl_sys::c_void {
     fn true_arg(&self, dev: &Accel) -> *const cl_sys::c_void {
         let (buffer, _size, _szf, is_map) = dev.buffers.get(self).unwrap();
@@ -425,11 +443,16 @@ impl TrueArg for *mut cl_sys::c_void {
     }
 }
 
-impl TrueArg for i32 {
+/// Nothing to do for basic types.
+impl TrueArg for i32 {}
+impl TrueArg for u32 {}
+impl TrueArg for f32 {}
+impl TrueArg for f64 {}
 
-}
-
-
+/// This macro helps to run a kernel the first time, by simplifying
+/// the definition of the kernel args.
+/// For the next calls, it is sufficient to call run_kernel
+/// if the args are not changed.
 #[macro_export]
 macro_rules! kernel_set_args_and_run {
     ($dev: expr, $kname: expr, $globsize: expr, $locsize:expr, $($arg:expr),*) => {{
@@ -445,4 +468,79 @@ macro_rules! kernel_set_args_and_run {
         )*
         $dev.run_kernel(& $kname, $globsize, $locsize);
     }}
+}
+
+
+pub fn error_text(error_code: cl_sys::cl_int) -> &'static str {
+    match error_code {
+        cl_sys::CL_SUCCESS => "CL_SUCCESS",
+        cl_sys::CL_DEVICE_NOT_FOUND => "CL_DEVICE_NOT_FOUND",
+        cl_sys::CL_DEVICE_NOT_AVAILABLE => "CL_DEVICE_NOT_AVAILABLE",
+        cl_sys::CL_COMPILER_NOT_AVAILABLE => "CL_COMPILER_NOT_AVAILABLE",
+        cl_sys::CL_MEM_OBJECT_ALLOCATION_FAILURE => "CL_MEM_OBJECT_ALLOCATION_FAILURE",
+        cl_sys::CL_OUT_OF_RESOURCES => "CL_OUT_OF_RESOURCES",
+        cl_sys::CL_OUT_OF_HOST_MEMORY => "CL_OUT_OF_HOST_MEMORY",
+        cl_sys::CL_PROFILING_INFO_NOT_AVAILABLE => "CL_PROFILING_INFO_NOT_AVAILABLE",
+        cl_sys::CL_MEM_COPY_OVERLAP => "CL_MEM_COPY_OVERLAP",
+        cl_sys::CL_IMAGE_FORMAT_MISMATCH => "CL_IMAGE_FORMAT_MISMATCH",
+        cl_sys::CL_IMAGE_FORMAT_NOT_SUPPORTED => "CL_IMAGE_FORMAT_NOT_SUPPORTED",
+        cl_sys::CL_BUILD_PROGRAM_FAILURE => "CL_BUILD_PROGRAM_FAILURE",
+        cl_sys::CL_MAP_FAILURE => "CL_MAP_FAILURE",
+        cl_sys::CL_MISALIGNED_SUB_BUFFER_OFFSET => "CL_MISALIGNED_SUB_BUFFER_OFFSET",
+        cl_sys::CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST => "CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST",
+        cl_sys::CL_COMPILE_PROGRAM_FAILURE => "CL_COMPILE_PROGRAM_FAILURE",
+        cl_sys::CL_LINKER_NOT_AVAILABLE => "CL_LINKER_NOT_AVAILABLE",
+        cl_sys::CL_LINK_PROGRAM_FAILURE => "CL_LINK_PROGRAM_FAILURE",
+        cl_sys::CL_DEVICE_PARTITION_FAILED => "CL_DEVICE_PARTITION_FAILED",
+        cl_sys::CL_KERNEL_ARG_INFO_NOT_AVAILABLE => "CL_KERNEL_ARG_INFO_NOT_AVAILABLE",
+
+        cl_sys::CL_INVALID_VALUE => "CL_INVALID_VALUE",
+        cl_sys::CL_INVALID_DEVICE_TYPE => "CL_INVALID_DEVICE_TYPE",
+        cl_sys::CL_INVALID_PLATFORM => "CL_INVALID_PLATFORM",
+        cl_sys::CL_INVALID_DEVICE => "CL_INVALID_DEVICE",
+        cl_sys::CL_INVALID_CONTEXT => "CL_INVALID_CONTEXT",
+        cl_sys::CL_INVALID_QUEUE_PROPERTIES => "CL_INVALID_QUEUE_PROPERTIES",
+        cl_sys::CL_INVALID_COMMAND_QUEUE => "CL_INVALID_COMMAND_QUEUE",
+        cl_sys::CL_INVALID_HOST_PTR => "CL_INVALID_HOST_PTR",
+        cl_sys::CL_INVALID_MEM_OBJECT => "CL_INVALID_MEM_OBJECT",
+        cl_sys::CL_INVALID_IMAGE_FORMAT_DESCRIPTOR => "CL_INVALID_IMAGE_FORMAT_DESCRIPTOR",
+        cl_sys::CL_INVALID_IMAGE_SIZE => "CL_INVALID_IMAGE_SIZE",
+        cl_sys::CL_INVALID_SAMPLER => "CL_INVALID_SAMPLER",
+        cl_sys::CL_INVALID_BINARY => "CL_INVALID_BINARY",
+        cl_sys::CL_INVALID_BUILD_OPTIONS => "CL_INVALID_BUILD_OPTIONS",
+        cl_sys::CL_INVALID_PROGRAM => "CL_INVALID_PROGRAM",
+        cl_sys::CL_INVALID_PROGRAM_EXECUTABLE => "CL_INVALID_PROGRAM_EXECUTABLE",
+        cl_sys::CL_INVALID_KERNEL_NAME => "CL_INVALID_KERNEL_NAME",
+        cl_sys::CL_INVALID_KERNEL_DEFINITION => "CL_INVALID_KERNEL_DEFINITION",
+        cl_sys::CL_INVALID_KERNEL => "CL_INVALID_KERNEL",
+        cl_sys::CL_INVALID_ARG_INDEX => "CL_INVALID_ARG_INDEX",
+        cl_sys::CL_INVALID_ARG_VALUE => "CL_INVALID_ARG_VALUE",
+        cl_sys::CL_INVALID_ARG_SIZE => "CL_INVALID_ARG_SIZE",
+        cl_sys::CL_INVALID_KERNEL_ARGS => "CL_INVALID_KERNEL_ARGS",
+        cl_sys::CL_INVALID_WORK_DIMENSION => "CL_INVALID_WORK_DIMENSION",
+        cl_sys::CL_INVALID_WORK_GROUP_SIZE => "CL_INVALID_WORK_GROUP_SIZE",
+        cl_sys::CL_INVALID_WORK_ITEM_SIZE => "CL_INVALID_WORK_ITEM_SIZE",
+        cl_sys::CL_INVALID_GLOBAL_OFFSET => "CL_INVALID_GLOBAL_OFFSET",
+        cl_sys::CL_INVALID_EVENT_WAIT_LIST => "CL_INVALID_EVENT_WAIT_LIST",
+        cl_sys::CL_INVALID_EVENT => "CL_INVALID_EVENT",
+        cl_sys::CL_INVALID_OPERATION => "CL_INVALID_OPERATION",
+        cl_sys::CL_INVALID_GL_OBJECT => "CL_INVALID_GL_OBJECT",
+        cl_sys::CL_INVALID_BUFFER_SIZE => "CL_INVALID_BUFFER_SIZE",
+        cl_sys::CL_INVALID_MIP_LEVEL => "CL_INVALID_MIP_LEVEL",
+        cl_sys::CL_INVALID_GLOBAL_WORK_SIZE => "CL_INVALID_GLOBAL_WORK_SIZE",
+        cl_sys::CL_INVALID_PROPERTY => "CL_INVALID_PROPERTY",
+        cl_sys::CL_INVALID_IMAGE_DESCRIPTOR => "CL_INVALID_IMAGE_DESCRIPTOR",
+        cl_sys::CL_INVALID_COMPILER_OPTIONS => "CL_INVALID_COMPILER_OPTIONS",
+        cl_sys::CL_INVALID_LINKER_OPTIONS => "CL_INVALID_LINKER_OPTIONS",
+        cl_sys::CL_INVALID_DEVICE_PARTITION_COUNT => "CL_INVALID_DEVICE_PARTITION_COUNT",
+        cl_sys::CL_INVALID_PIPE_SIZE => "CL_INVALID_PIPE_SIZE",
+        cl_sys::CL_INVALID_DEVICE_QUEUE => "CL_INVALID_DEVICE_QUEUE",
+
+        cl_sys::CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR => "CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR",
+        cl_sys::CL_PLATFORM_NOT_FOUND_KHR => "CL_PLATFORM_NOT_FOUND_KHR",
+
+        _ => "UNKNOWN_ERROR",
+    }
+
+
 }
