@@ -370,20 +370,9 @@ impl TrueArg for i32 {
 
 }
 
-macro_rules! vec {
-    ( $( $x:expr ),* ) => {
-        {
-            let mut temp_vec = Vec::new();
-            $(
-                temp_vec.push($x);
-            )*
-            temp_vec
-        }
-    };
-}
 
 #[macro_export]
-macro_rules! run_kernel {
+macro_rules! kernel_set_args_and_run {
     ($dev: expr, $kname: expr, $globsize: expr, $locsize:expr, $($arg:expr),*) => {{
         println!("Device={:?}", $dev);
         println!("Kernel={:?}", $kname);

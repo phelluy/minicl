@@ -17,29 +17,23 @@ fn main() {
 
     let kname = "simple_add".to_string();
     cldev.register_kernel(&kname);
+
     let v = cldev.register_buffer(v);
 
     let x: i32 = 1000;
     
-    cldev.set_kernel_arg(&kname, 0, &v);
-    cldev.set_kernel_arg(&kname, 1, &x);
-
     let globsize = n;
     let locsize= 16;
- 
-    cldev.run_kernel(&kname,globsize,locsize);
+
+    kernel_set_args_and_run!(cldev, kname, globsize, locsize, v, x);
+
     let v: Vec<i32> = cldev.map_buffer(v);
-    println!("v={:?}",v);
-    let v = cldev.unmap_buffer(v);
-    cldev.run_kernel(&kname,globsize,locsize);
-    let v: Vec<i32> = cldev.map_buffer(v);
-    println!("v={:?}",v);
+    println!("First kernel run v={:?}",v);
 
     let v = cldev.unmap_buffer(v);
-    run_kernel!(cldev, kname, globsize, locsize, v, x);
+    cldev.run_kernel(&kname, globsize, locsize);
     let v: Vec<i32> = cldev.map_buffer(v);
-    println!("v={:?}",v);
-
+    println!("Next kernel run v={:?}",v);
 
 }
 
