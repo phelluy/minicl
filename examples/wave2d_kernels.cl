@@ -141,6 +141,8 @@ __kernel void time_step(real tnow,
     + a * bx * bx * (u[0] + u[1]) + a * by * by * (u[2] + u[3])
     - _DT * _DT * a * s;
 
+    //unp1[imem] = s;
+
 }
 
 
