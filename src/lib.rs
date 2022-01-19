@@ -30,7 +30,7 @@
 //!let globsize = n;
 //!let locsize = 16;
 //!
-//! // invoke this macro for the first kernel call
+//! // first kernel call
 //!minicl::kernel_set_args_and_run!(cldev, kname, globsize, locsize, v, x);
 //!
 //! // map the buffer for access from the host
@@ -40,9 +40,8 @@
 //! // unmap for giving it back to the device
 //!let v = cldev.unmap_buffer(v);
 //!
-//! // next call: no need to redefine the kernel args
-//! // if they are the same
-//!cldev.run_kernel(&kname, globsize, locsize);
+//! // next call
+//!minicl::kernel_set_args_and_run!(cldev, kname, globsize, locsize, v, x);
 //!
 //!let v: Vec<i32> = cldev.map_buffer(v);
 //!println!("Next kernel run v={:?}", v);
@@ -217,18 +216,18 @@ impl Accel {
     }
 
     /// Registers a kernel, before it can be called.
-    pub fn register_kernel(&mut self, name: &String) {
+    pub fn register_kernel(&mut self, name: &str) {
         assert!(
             !self.kernels.contains_key(name),
             "Kernel already registered."
         );
         let mut err: i32 = 0;
-        let cname = std::ffi::CString::new(name.clone()).unwrap();
+        let cname = std::ffi::CString::new(name.to_string()).unwrap();
         let kernel: cl_sys::cl_kernel =
             unsafe { cl_sys::clCreateKernel(self.program, cname.as_ptr(), &mut err) };
         assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
         //println!("kernel={:?}", kernel);
-        self.kernels.insert(name.clone(), kernel);
+        self.kernels.insert(name.to_string(), kernel);
     }
 
     /// Registers a buffer before it can be passed to a kernel.
@@ -279,7 +278,7 @@ impl Accel {
         let size = tup.1;
         let szf = tup.2;
         let is_map = tup.3;
-        assert!(is_map);
+        assert!(is_map, "Buffer is already unmap.");
         //let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
         self.buffers.remove(&ptr0).unwrap();
         //println!("ptr0 before cl buffer création: {:?}", ptr0);
@@ -341,7 +340,7 @@ impl Accel {
         self.buffers.insert(ptr0, (buffer, size, szf, is_map));
         let n = size / szf;
         //println!("size={} szf={}", size, szf);
-        assert!(size % szf == 0);
+        assert!(size % szf == 0, "Possible type mistmatch.");
         //println!("ptr0 before cl map: {:?}", ptr0);
         //println!("ptr after cl map: {:?}", ptr);
         assert_eq!(ptr, ptr0 as *mut T);
@@ -355,7 +354,7 @@ impl Accel {
     /// The args must implement the TrueArg traits, which converts
     /// the Rust arg type to the corresponding OpenCL type, with the
     /// same size.
-    pub fn set_kernel_arg<T: TrueArg>(&mut self, kname: &String, index: usize, arg: &T) {
+    pub fn set_kernel_arg<T: TrueArg>(&mut self, kname: &str, index: usize, arg: &T) {
         let kernel = self.kernels.get(kname).unwrap();
         let smem = std::mem::size_of::<T>();
         let targ = arg.true_arg(self);
@@ -365,16 +364,19 @@ impl Accel {
 
     /// Runs a kernel with given global size and local size.
     /// Before calling this function, it is necessay to set the kernel args.
-    /// This can be achievd with the macro kernel_set_args_and_run
-    /// This function is not safe, because mem buffers that are mapped to the host
-    /// and used by the kernel will produce undefined behavior...
-    /// TODO: add check for avoiding the use of mapped buffers.
-    pub unsafe fn run_kernel(&mut self, kname: &String, globsize: usize, locsize: usize) {
+    /// This can be achieved with the function [set_kernel_arg](Accel::set_kernel_arg).
+    /// # Safety
+    /// This function is not safe, because if mem buffers are mapped to the host
+    /// and used by the kernel, this can produce undefined behavior.
+    /// It is better to use the macro [kernel_set_args_and_run!](kernel_set_args_and_run!), which recheck all args.
+    /// The measured overhead is generally very very small.
+    pub unsafe fn run_kernel(&mut self, kname: &str, globsize: usize, locsize: usize) {
         let kernel = self.kernels.get(kname).unwrap();
 
         assert!(globsize % locsize == 0);
 
         let offset = 0;
+        #[allow(unused_unsafe)]
         let err = unsafe {
             cl_sys::clEnqueueNDRangeKernel(
                 self.queue,
@@ -390,6 +392,7 @@ impl Accel {
         };
         assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
 
+        #[allow(unused_unsafe)]
         let err = unsafe { cl_sys::clFinish(self.queue) };
         assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
     }
@@ -440,26 +443,28 @@ pub trait TrueArg {
     }
 }
 
-/// Pointer conversion for buffer. We provide aditional
-/// checks for better safety: the buffer must be registered
-/// and not currently mapped to the host.
-impl TrueArg for *mut cl_sys::c_void {
-    fn true_arg(&self, dev: &Accel) -> *const cl_sys::c_void {
-        let (buffer, _size, _szf, is_map) = dev.buffers.get(self).unwrap();
-        assert!(!is_map, "Buffer is mapped on the host");
-        buffer as *const _ as *const cl_sys::c_void
-    }
-}
-
 /// Nothing to do for basic types.
 impl TrueArg for i32 {}
 impl TrueArg for u32 {}
 impl TrueArg for f32 {}
 impl TrueArg for f64 {}
 
+
+/// Pointer conversion for buffer. We provide additional
+/// checks for better safety: the buffer must be registered
+/// and not currently mapped to the host.
+impl TrueArg for *mut cl_sys::c_void {
+    fn true_arg(&self, dev: &Accel) -> *const cl_sys::c_void {
+        let (buffer, _size, _szf, is_map) = dev.buffers.get(self).unwrap();
+        assert!(!is_map, "Buffer is mapped on the host.");
+        buffer as *const _ as *const cl_sys::c_void
+    }
+}
+
+
 /// This macro helps to run a kernel the first time, by simplifying
 /// the definition of the kernel args.
-/// For the next calls, it is sufficient to call run_kernel
+/// For the next calls, it is possible to use [run_kernel](Accel::run_kernel)
 /// if the args are not changed.
 #[macro_export]
 macro_rules! kernel_set_args_and_run {
