@@ -1,3 +1,6 @@
+// resolution of the wave equation on a square
+// with the leapfrog method and minicl
+// you need python and matplotlib for seeing the results
 fn main() {
     use std::fs;
 
@@ -16,6 +19,8 @@ fn main() {
     let cfl: f32 = 0.4;
 
     let dt: f32 = cfl * (dx * dx + dy * dy).sqrt() / cson;
+
+    println!("grid size {}x{}",nx,ny);
 
     // tuning of the OpenCL sources
     let mut source = fs::read_to_string("examples/wave2d_kernels.cl").unwrap();
@@ -66,8 +71,10 @@ fn main() {
 
     // time loop
     let mut t = 0.;
+    let mut count = 0;
     while t < tmax {
         t += dt;
+        count += 1;
         minicl::kernel_set_args_and_run!(cldev, time_step, globsize, locsize, t, unm1, un, unp1);
         let temp = unm1;
         unm1 = un;
@@ -77,8 +84,9 @@ fn main() {
     println!("tmax={} tend={}", tmax, t);
 
     let duration = start.elapsed();
-    println!("Computing time: {:?}", duration);
+    println!("{} iters in {:?}",count, duration);
 
+    println!("Plotting...");
     // get back the buffer on the host
     // for plotting
     let un: Vec<f32> = cldev.map_buffer(un);
