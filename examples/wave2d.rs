@@ -4,8 +4,8 @@
 fn main() {
     use std::fs;
 
-    let nx = 128;
-    let ny = 128;
+    let nx = 1024;
+    let ny = 1024;
     let tmax: f32 = 2.;
     let lx: f32 = 1.;
     let ly: f32 = 1.;
