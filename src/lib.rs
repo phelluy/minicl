@@ -1,10 +1,10 @@
 //! Minimal compute library for accessing OpenCL from Rust.
 //!  With normal use, this library should prevent memory leaks
 //! and most unsafety related to OpenCL.
-//! 
+//!
 //! All the OpenCL things (device, context, buffers, etc.)
 //!  are packed into a single Accelerator struct.
-//! 
+//!
 //! # Examples
 //! ```
 //!let source = "__kernel  void simple_add(__global int *v, int x){
@@ -369,7 +369,7 @@ impl Accel {
     /// This function is not safe, because mem buffers that are mapped to the host
     /// and used by the kernel will produce undefined behavior...
     /// TODO: add check for avoiding the use of mapped buffers.
-    pub fn run_kernel(&mut self, kname: &String, globsize: usize, locsize: usize) {
+    pub unsafe fn run_kernel(&mut self, kname: &String, globsize: usize, locsize: usize) {
         let kernel = self.kernels.get(kname).unwrap();
 
         assert!(globsize % locsize == 0);
@@ -474,7 +474,7 @@ macro_rules! kernel_set_args_and_run {
             count +=1;
             $dev.set_kernel_arg(& $kname, count as usize, & $arg);
         )*
-        $dev.run_kernel(& $kname, $globsize, $locsize);
+        unsafe { $dev.run_kernel(& $kname, $globsize, $locsize)};
     }}
 }
 
@@ -549,7 +549,6 @@ pub fn error_text(error_code: cl_sys::cl_int) -> &'static str {
     }
 }
 
-
 // some unit tests
 #[test]
 fn test_init() {
@@ -559,7 +558,7 @@ fn test_init() {
     .to_string();
 
     let dev = Accel::new(source, 0);
-    println!("{:?}",dev);
+    println!("{:?}", dev);
 }
 
 #[test]
@@ -570,11 +569,11 @@ fn test_buffer() {
     .to_string();
 
     let mut dev = Accel::new(source, 0);
-    let v: Vec<i32> = vec![3;16];
+    let v: Vec<i32> = vec![3; 16];
     let v0 = v.clone();
     let v = dev.register_buffer(v);
     let v = dev.map_buffer(v);
-    assert_eq!(v0,v);
+    assert_eq!(v0, v);
 }
 
 #[test]
@@ -588,11 +587,11 @@ fn test_kernel() {
     let kernel_name = "simple_add".to_string();
     let mut dev = Accel::new(source, 0);
     dev.register_kernel(&kernel_name);
-    let v: Vec<i32> = vec![3;16];
-    let vp: Vec<i32> = vec![6;16];
+    let v: Vec<i32> = vec![3; 16];
+    let vp: Vec<i32> = vec![6; 16];
     let v = dev.register_buffer(v);
     let x = 3;
-    kernel_set_args_and_run!(dev, kernel_name,16,4,v,x);
+    kernel_set_args_and_run!(dev, kernel_name, 16, 4, v, x);
     let v = dev.map_buffer(v);
-    assert_eq!(vp,v);
+    assert_eq!(vp, v);
 }

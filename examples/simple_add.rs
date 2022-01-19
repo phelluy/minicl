@@ -51,7 +51,7 @@ fn main() {
     let start = Instant::now();
     for iter in 0..10000 {
         minicl::kernel_set_args_and_run!(cldev, kname, globsize, locsize, v, x);
-        //cldev.run_kernel(&kname, globsize, locsize);
+        //unsafe { cldev.run_kernel(&kname, globsize, locsize) };
     }
     let duration = start.elapsed();
 
