@@ -4,8 +4,8 @@
 fn main() {
     use std::fs;
 
-    let nx = 1024;
-    let ny = 1024;
+    let nx = 512;
+    let ny = 512;
     let tmax: f32 = 2.;
     let lx: f32 = 1.;
     let ly: f32 = 1.;
@@ -71,13 +71,6 @@ fn main() {
         t += dt;
         println!("t={}", t);
         minicl::kernel_set_args_and_run!(cldev, time_step, globsize, locsize, t, unm1, un, unp1);
-        // let unm1: Vec<f32> = cldev.map_buffer(unm1);
-        // let unp1: Vec<f32> = cldev.map_buffer(unp1);
-        // let un: Vec<f32> = cldev.map_buffer(un);
-        // let unm1= cldev.unmap_buffer(unm1);
-        // let unp1= cldev.unmap_buffer(unp1);
-        // let un= cldev.unmap_buffer(un);
-
         let temp = unm1;
         unm1 = un;
         un = unp1;
