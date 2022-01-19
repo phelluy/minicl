@@ -135,6 +135,9 @@ __kernel void time_step(real tnow,
 
   real s;
   source(xy, tnow, &s);
+  // if (s != 0) {
+  // printf("t=%f",tnow);
+  // }
   
   unp1[imem] = (1 - 2 * a) * unm1[imem] +
     2 * a * (1 - bx * bx - by * by) * un[imem]

@@ -7,7 +7,7 @@ fn main() {
     let nx = 128;
     let ny = 128;
     let tmax: f32 = 2.;
-    let lx: f32 = 2.;
+    let lx: f32 = 1.;
     let ly: f32 = 1.;
 
     let dx = lx / (nx - 1) as f32;
@@ -55,28 +55,33 @@ fn main() {
     let un: Vec<f32> = vec![0.; n];
     let unm1: Vec<f32> = vec![0.; n];
     let unp1: Vec<f32> = vec![0.; n];
-    let un = cldev.register_buffer(un);
-    let unm1 = cldev.register_buffer(unm1);
-    let unp1 = cldev.register_buffer(unp1);
+    let mut un = cldev.register_buffer(un);
+    let mut unm1 = cldev.register_buffer(unm1);
+    let mut unp1 = cldev.register_buffer(unp1);
 
     let globsize = n;
     let locsize = 32;
 
     use std::time::Instant;
     let start = Instant::now();
-    minicl::kernel_set_args_and_run!(cldev, init_sol, globsize, locsize,
-         un, unm1);
+    minicl::kernel_set_args_and_run!(cldev, init_sol, globsize, locsize, un, unm1);
 
     let mut t = 0.;
     while t < tmax {
         t += dt;
-        println!("t={}",t);
-        minicl::kernel_set_args_and_run!(cldev, time_step, globsize,locsize,
-             t, unm1, un, unp1);
+        println!("t={}", t);
+        minicl::kernel_set_args_and_run!(cldev, time_step, globsize, locsize, t, unm1, un, unp1);
+        // let unm1: Vec<f32> = cldev.map_buffer(unm1);
+        // let unp1: Vec<f32> = cldev.map_buffer(unp1);
+        // let un: Vec<f32> = cldev.map_buffer(un);
+        // let unm1= cldev.unmap_buffer(unm1);
+        // let unp1= cldev.unmap_buffer(unp1);
+        // let un= cldev.unmap_buffer(un);
+
         let temp = unm1;
-        let unm1 = un;
-        let un = unp1;
-        let unp1 = temp;
+        unm1 = un;
+        un = unp1;
+        unp1 = temp;
     }
 
     let duration = start.elapsed();
