@@ -1,12 +1,10 @@
-//#[macro_use]
-//extern crate minicl;
-
 fn main() {
     use std::fs;
 
+    // numerical parameters
     let nx = 512;
     let ny = 512;
-    let tmax: f32 = 2.;
+    let tmax: f32 = 0.4;
     let lx: f32 = 1.;
     let ly: f32 = 1.;
 
@@ -19,6 +17,7 @@ fn main() {
 
     let dt: f32 = cfl * (dx * dx + dy * dy).sqrt() / cson;
 
+    // tuning of the OpenCL sources
     let mut source = fs::read_to_string("examples/wave2d_kernels.cl").unwrap();
 
     source = source.replace("real", &"float");
@@ -29,15 +28,13 @@ fn main() {
     source = source.replace("_dx_", &dx.to_string());
     source = source.replace("_dy_", &dy.to_string());
     source = source.replace("_cson_", &cson.to_string());
-    let source = source.replace("_dt_", &dt.to_string());
+    source = source.replace("_dt_", &dt.to_string());
 
     use std::io::stdin;
     let mut s = String::new();
     println!("Enter platform num.");
-    stdin()
-        .read_line(&mut s)
-        .expect("Did not enter a correct string");
-    let input: usize = s.trim().parse().expect("Wanted a number");
+    stdin().read_line(&mut s).unwrap();
+    let input: usize = s.trim().parse().unwrap();
     let numplat = input;
 
     let mut cldev = minicl::Accel::new(source, numplat);
@@ -69,13 +66,13 @@ fn main() {
     let mut t = 0.;
     while t < tmax {
         t += dt;
-        println!("t={}", t);
         minicl::kernel_set_args_and_run!(cldev, time_step, globsize, locsize, t, unm1, un, unp1);
         let temp = unm1;
         unm1 = un;
         un = unp1;
         unp1 = temp;
     }
+    println!("t={}", t);
 
     let duration = start.elapsed();
     println!("Computing time: {:?}", duration);
