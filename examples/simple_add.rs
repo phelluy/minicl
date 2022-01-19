@@ -23,14 +23,14 @@ fn main() {
     let kname = "simple_add".to_string();
     cldev.register_kernel(&kname);
 
-    let n = 64;
+    let n = 64*256;
 
     // the memory buffer shared with the
     // accelerator has to be registered
     let v: Vec<i32> = vec![12; n];
     let v = cldev.register_buffer(v);
 
-    let x: i32 = 1000;
+    let x: i32 = 1;
     let globsize = n;
     let locsize = 16;
 
@@ -46,8 +46,18 @@ fn main() {
 
     // next call: no need to redefine the kernel args
     // if they are the same
-    cldev.run_kernel(&kname, globsize, locsize);
+    use std::time::Instant;
 
+    let start = Instant::now();
+    for iter in 0..10000 {
+        minicl::kernel_set_args_and_run!(cldev, kname, globsize, locsize, v, x);
+        //cldev.run_kernel(&kname, globsize, locsize);
+    }
+    let duration = start.elapsed();
+
+    println!("Computing time: {:?}", duration);
+
+    //let v = cldev.unmap_buffer(v);
     let v: Vec<i32> = cldev.map_buffer(v);
-    println!("Next kernel run v={:?}", v);
+    println!("Next kernel run v={:?}", v[0]);
 }

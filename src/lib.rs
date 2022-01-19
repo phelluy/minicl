@@ -366,6 +366,9 @@ impl Accel {
     /// Runs a kernel with given global size and local size.
     /// Before calling this function, it is necessay to set the kernel args.
     /// This can be achievd with the macro kernel_set_args_and_run
+    /// This function is not safe, because mem buffers that are mapped to the host
+    /// and used by the kernel will produce undefined behavior...
+    /// TODO: add check for avoiding the use of mapped buffers.
     pub fn run_kernel(&mut self, kname: &String, globsize: usize, locsize: usize) {
         let kernel = self.kernels.get(kname).unwrap();
 
