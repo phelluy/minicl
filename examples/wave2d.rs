@@ -2,11 +2,35 @@
 //extern crate minicl;
 
 fn main() {
-    let source = "__kernel  void simple_add(__global int *v, int x){
-        int i = get_global_id(0);
-        v[i] += x;
-    }"
-    .to_string();
+    use std::fs;
+
+    let nx = 128;
+    let ny = 128;
+    let tmax: f32 = 2.;
+    let lx: f32 = 2.;
+    let ly: f32 = 1.;
+
+    let dx = lx / (nx-1) as f32;
+    let dy = ly / (ny-1) as f32;
+
+    let cson: f32 = (2 as f32).sqrt();
+
+    let cfl: f32 = 0.4;
+
+    let dt: f32 = cfl * (dx * dx + dy * dy).sqrt() / cson;
+
+    let mut source = fs::read_to_string("examples/wave2d_kernels.cl").unwrap();
+
+    source = source.replace("real",&"float");
+    source = source.replace("_float_",&"float");
+    source = source.replace("_F",&"f");
+    source = source.replace("_nx_",&nx.to_string());
+    source = source.replace("_ny_",&ny.to_string());
+    source = source.replace("_dx_",&dx.to_string());
+    source = source.replace("_dy_",&dy.to_string());
+    source = source.replace("_cson_",&cson.to_string());
+    source = source.replace("_dt_",&dt.to_string());
+
 
     use std::io::stdin;
     let mut s = String::new();
