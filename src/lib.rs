@@ -466,6 +466,9 @@ impl TrueArg for *mut cl_sys::c_void {
 /// the definition of the kernel args.
 /// For the next calls, it is possible to use [run_kernel](Accel::run_kernel)
 /// if the args are not changed.
+/// # Safety
+/// Calling an OpenCL kernel is not safe. A bug in the C code of the kernel 
+/// can lead to a segfault for instance.
 #[macro_export]
 macro_rules! kernel_set_args_and_run {
     ($dev: expr, $kname: expr, $globsize: expr, $locsize:expr, $($arg:expr),*) => {{

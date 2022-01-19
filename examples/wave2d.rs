@@ -7,7 +7,7 @@ fn main() {
     // numerical parameters
     let nx = 512;
     let ny = 512;
-    let tmax: f32 = 0.4;
+    let tmax: f32 = 1.;
     let lx: f32 = 1.;
     let ly: f32 = 1.;
 
