@@ -30,16 +30,17 @@ fn main() {
     source = source.replace("_cson_", &cson.to_string());
     source = source.replace("_dt_", &dt.to_string());
 
+    // ask the platform id to the user
     use std::io::stdin;
     let mut s = String::new();
-    println!("Enter platform num.");
+    println!("Platform id ? (0 is a safe choice)");
     stdin().read_line(&mut s).unwrap();
     let input: usize = s.trim().parse().unwrap();
     let numplat = input;
 
     let mut cldev = minicl::Accel::new(source, numplat);
 
-    // the used kernels has to be registered
+    // registration of the kernels
     let init_sol = "init_sol".to_string();
     cldev.register_kernel(&init_sol);
     let time_step = "time_step".to_string();
@@ -47,13 +48,12 @@ fn main() {
 
     let n = nx * ny;
 
-    // the memory buffer shared with the
-    // accelerator has to be registered
-    let un: Vec<f32> = vec![0.; n];
+    // memory buffers needed for the leapfrog computations
     let unm1: Vec<f32> = vec![0.; n];
+    let un: Vec<f32> = vec![0.; n];
     let unp1: Vec<f32> = vec![0.; n];
-    let mut un = cldev.register_buffer(un);
     let mut unm1 = cldev.register_buffer(unm1);
+    let mut un = cldev.register_buffer(un);
     let mut unp1 = cldev.register_buffer(unp1);
 
     let globsize = n;
@@ -61,8 +61,10 @@ fn main() {
 
     use std::time::Instant;
     let start = Instant::now();
+    // initial data
     minicl::kernel_set_args_and_run!(cldev, init_sol, globsize, locsize, un, unm1);
 
+    // time loop
     let mut t = 0.;
     while t < tmax {
         t += dt;
@@ -72,15 +74,18 @@ fn main() {
         un = unp1;
         unp1 = temp;
     }
-    println!("t={}", t);
+    println!("tmax={} tend={}", tmax, t);
 
     let duration = start.elapsed();
     println!("Computing time: {:?}", duration);
-    let unp1: Vec<f32> = cldev.map_buffer(unp1);
+
+    // get back the buffer on the host
+    // for plotting
+    let un: Vec<f32> = cldev.map_buffer(un);
 
     let xp: Vec<f32> = (0..nx).map(|i| i as f32 * dx).collect();
     let yp: Vec<f32> = (0..ny).map(|i| i as f32 * dy).collect();
-    plotpy(xp.clone(), yp.clone(), unp1);
+    plotpy(xp.clone(), yp.clone(), un);
 }
 
 /// Plots a 2D data set using matplotlib.
