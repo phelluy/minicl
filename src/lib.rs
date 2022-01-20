@@ -465,7 +465,8 @@ impl TrueArg for *mut cl_sys::c_void {
 /// This macro helps to run a kernel the first time, by simplifying
 /// the definition of the kernel args.
 /// For the next calls, it is possible to use [run_kernel](Accel::run_kernel)
-/// if the args are not changed.
+/// if the args are not changed. But it is better to use this macro which recheck all args.
+/// The measured overhead is generally very very small.
 /// # Safety
 /// Calling an OpenCL kernel is not safe. A bug in the C code of the kernel 
 /// can lead to a segfault for instance.
