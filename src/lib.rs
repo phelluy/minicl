@@ -325,7 +325,7 @@ impl Accel {
                 self.queue,
                 buffer,
                 blocking,
-                cl_sys::CL_MAP_READ,
+                cl_sys::CL_MAP_READ | cl_sys::CL_MAP_WRITE, 
                 0,
                 size,
                 0,

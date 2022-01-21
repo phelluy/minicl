@@ -5,8 +5,8 @@ fn main() {
     use std::fs;
 
     // numerical parameters
-    let nx = 1024;
-    let ny = 512;
+    let nx = 512;
+    let ny = 256;
     let mw = 4;
     let nk = mw * 4;
     let tmax: f32 = 0.0;
