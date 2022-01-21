@@ -7,6 +7,14 @@ With normal use, this library should prevent memory leaks
  All the OpenCL things (device, context, buffers, etc.)
 are packed into a single Accelerator struct.
 
+Tested (January 2022) on:
+
+- Linux, with NVIDIA drivers (GPU), Intel drivers (CPU), POCL drivers (CPU) and Oclgrind debugger;
+
+- Apple M1 Silicon with Apple drivers (GPU);
+
+- Windows 11 in WSL2 with POCL drivers (CPU).
+
 Simple example:
 
  ```rust
