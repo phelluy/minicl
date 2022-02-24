@@ -21,19 +21,35 @@ __constant int dir[4][2] = { {-1, 0}, {1, 0},
 
 __constant real ds[4] = { _DY, _DY, _DX, _DX };
 
-#define _R (0._F)
+#define _R (1._F)
 #define _G ((1 - _R) /(1 + _R))
 
+real peak(real x) {
+    real r2 = x * x;
+    real eps = 0.2;
+    real eps2 = eps * eps;
+    real s;
+    if (r2 / eps2 < 1.) {
+        s=pow(1. - r2 / eps2,4);
+    } else {
+        s=0.;
+    }
+    return s;
+}
 
-
-void exact_sol(real* x, real t, real* u){
-
+void exact_sol(real* xy, real t, real* u){
+  real x =xy[0];
+  real y =xy[1];
+    real r = sqrt((x - 0.5) * (x - 0.5) + (y - 0.5) * (y - 0.5));
+    *u=peak(r);
   
   //*u = sin(10 * 2 * M_PI * (x[1] + x[0] - sqrt((real) 2) * _C * t));
   //*u=1;
-  *u = 0;
+  //*u = 0;
   
 }
+
+
 
 void source(real *x, real t, real *s){
 
@@ -51,10 +67,10 @@ void source(real *x, real t, real *s){
 
   *s = 0;
   
-  if (d < r){
-    *s =  sin(10 * 2 * M_PI * (sqrt((real) 2) * _C * t));
+  // if (d < r){
+  //   *s =  sin(10 * 2 * M_PI * (sqrt((real) 2) * _C * t));
 
-  }
+  // }
 
 }
 

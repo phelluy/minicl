@@ -7,14 +7,14 @@ fn main() {
     // numerical parameters
     let nx = 512;
     let ny = 512;
-    let tmax: f32 = 1.;
+    let tmax: f32 = 0.6;
     let lx: f32 = 1.;
     let ly: f32 = 1.;
 
     let dx = lx / (nx - 1) as f32;
     let dy = ly / (ny - 1) as f32;
 
-    let cson: f32 = (2 as f32).sqrt();
+    let cson: f32 = (1 as f32).sqrt();
 
     let cfl: f32 = 0.4;
 
