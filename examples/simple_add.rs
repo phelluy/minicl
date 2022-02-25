@@ -23,7 +23,7 @@ fn main() {
     let kname = "simple_add".to_string();
     cldev.register_kernel(&kname);
 
-    let n = 64*256;
+    let n = 16;
 
     // the memory buffer shared with the
     // accelerator has to be registered

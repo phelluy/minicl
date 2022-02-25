@@ -561,7 +561,7 @@ pub fn error_text(error_code: cl_sys::cl_int) -> &'static str {
 // some unit tests
 #[test]
 fn test_init() {
-    let source = "__kernel  void simple_kernel(){
+    let source = "__kernel  void simple_kernel(void){
         int i = get_global_id(0);
     }"
     .to_string();
