@@ -1,18 +1,3 @@
-//  Pieced together from Boost C++ and Cephes by
-//  Andreas Kloeckner (C) 2012
-//
-//  Pieces from:
-//
-//  Copyright (c) 2006 Xiaogang Zhang, John Maddock
-//  Use, modification and distribution are subject to the
-//  Boost Software License, Version 1.0. (See
-//  http://www.boost.org/LICENSE_1_0.txt)
-//
-// Cephes Math Library Release 2.8:  June, 2000
-// Copyright 1984, 1987, 1989, 1992, 2000 by Stephen L. Moshier
-// What you see here may be used freely, but it comes with no support or
-// guarantee.
-
 //#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
 #define real _real_
@@ -50,6 +35,9 @@
 
 __constant real cylinderCenter[2] = {0.073, 0.05};
 __constant real cylinderRadius = 0.01;
+
+// this function swaps two integers
+
 
 void flux_phy(const real *W, const real *vn, real *flux);
 
