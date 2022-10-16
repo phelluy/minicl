@@ -5,8 +5,8 @@ fn main() {
     use std::fs;
 
     // numerical parameters
-    let nx = 512;
-    let ny = 512;
+    let nx = 2048;
+    let ny = 2048;
     let tmax: f32 = 0.6;
     let lx: f32 = 1.;
     let ly: f32 = 1.;
