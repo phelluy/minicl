@@ -118,7 +118,7 @@ fn plotpy(xp: Vec<f32>, yp: Vec<f32>, zp: Vec<f32>) {
     } // ensures that the file is closed
 
     use std::process::Command;
-    Command::new("python3")
+    Command::new("python")
         .arg("examples/plot.py")
         .status()
         .expect("Plot failed: you need Python3 and Matplotlib in your PATH.");
