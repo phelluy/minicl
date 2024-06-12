@@ -160,7 +160,7 @@ impl Accel {
         };
         assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
 
-        let opt = std::ffi::CString::new("").unwrap();
+        let opt = std::ffi::CString::new("-w").unwrap();
         let log: *mut cl_sys::c_void = std::ptr::null_mut();
         let errb = unsafe { cl_sys::clBuildProgram(program, 1, &device, opt.as_ptr(), None, log) };
 
