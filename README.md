@@ -15,6 +15,12 @@ Tested (January 2022) on:
 
 - Windows 11 in WSL2 with POCL drivers (CPU).
 
+Still works in 2025 on:
+
+- Linux, with NVIDIA drivers (GPU) and probably on other OpenCL drivers
+
+- Apple M4 Silicon with Apple drivers (GPU)
+
 If your OpenCL library forbids concurrent access, run the tests individually or use the command
 
 ```bash
