@@ -6,48 +6,74 @@
 //!  are packed into a single Accelerator struct.
 //!
 //! # Examples
+//! # Examples
 //! ```
-//!let source = "__kernel  void simple_add(__global int *v, int x){
-//!int i = get_global_id(0);
-//!v[i] += x;
-//!}"
-//!.to_string();
-//!let num_platform = 0;
-//!let mut cldev = minicl::Accel::new(source, num_platform);
+//! fn main() -> Result<(), minicl::MCLError> {
+//!     let source = "__kernel  void simple_add(__global int *v, int x){
+//!         int i = get_global_id(0);
+//!         v[i] += x;
+//!     }"
+//!     .to_string();
+//!     let num_platform = 0;
+//!     let mut cldev = minicl::Accel::new(source, num_platform)?;
 //!
-//! // the used kernel has to be registered
-//!let kname = "simple_add".to_string();
-//!cldev.register_kernel(&kname);
+//!     // the used kernel has to be registered
+//!     let kname = "simple_add".to_string();
+//!     cldev.register_kernel(&kname)?;
 //!
-//!let n = 64;
+//!     let n = 64;
 //!
-//! // the memory buffer shared with the
-//! // accelerator has to be registered
-//!let v: Vec<i32> = vec![12; n];
-//!let v = cldev.register_buffer(v);
+//!     // the memory buffer shared with the
+//!     // accelerator has to be registered
+//!     let v: Vec<i32> = vec![12; n];
+//!     let v = cldev.register_buffer(v)?;
 //!
-//!let x: i32 = 1000;
-//!let globsize = n;
-//!let locsize = 16;
+//!     let x: i32 = 1000;
+//!     let globsize = n;
+//!     let locsize = 16;
 //!
-//! // first kernel call
-//!minicl::kernel_set_args_and_run!(cldev, kname, globsize, locsize, v, x);
+//!     // first kernel call
+//!     minicl::kernel_set_args_and_run!(cldev, kname, globsize, locsize, v, x)?;
 //!
-//! // map the buffer for access from the host
-//!let v: Vec<i32> = cldev.map_buffer(v);
-//!println!("First kernel run v={:?}", v);
+//!     // map the buffer for access from the host
+//!     let v: Vec<i32> = cldev.map_buffer(v)?;
+//!     println!("First kernel run v={:?}", v);
 //!
-//! // unmap for giving it back to the device
-//!let v = cldev.unmap_buffer(v);
+//!     // unmap for giving it back to the device
+//!     let v = cldev.unmap_buffer(v)?;
 //!
-//! // next call
-//!minicl::kernel_set_args_and_run!(cldev, kname, globsize, locsize, v, x);
+//!     // next call
+//!     minicl::kernel_set_args_and_run!(cldev, kname, globsize, locsize, v, x)?;
 //!
-//!let v: Vec<i32> = cldev.map_buffer(v);
-//!println!("Next kernel run v={:?}", v);
-//!
+//!     let v: Vec<i32> = cldev.map_buffer(v)?;
+//!     println!("Next kernel run v={:?}", v);
+//!     Ok(())
+//! }
 //! ```
 use std::collections::HashMap;
+use std::alloc::Layout;
+#[derive(Debug)]
+pub enum MCLError {
+    OpenCl(String),
+    StdCString(std::ffi::NulError),
+    Other(String),
+}
+
+impl From<std::ffi::NulError> for MCLError {
+    fn from(err: std::ffi::NulError) -> Self {
+        MCLError::StdCString(err)
+    }
+}
+
+// Helper to convert CL error codes to Result
+fn check_cl_error(err: cl_sys::cl_int) -> Result<(), MCLError> {
+    if err == cl_sys::CL_SUCCESS {
+        Ok(())
+    } else {
+        Err(MCLError::OpenCl(error_text(err).to_string()))
+    }
+}
+
 /// All the OpenCL things (device, context, buffers, etc.)
 ///  are packed into a single Accelerator struct.
 #[derive(Debug)]
@@ -57,26 +83,34 @@ pub struct Accel {
     program: cl_sys::cl_program,
     queue: cl_sys::cl_command_queue,
     kernels: HashMap<String, cl_sys::cl_kernel>,
-    buffers: HashMap<*mut cl_sys::c_void, (cl_sys::cl_mem, usize, usize, bool)>,
+    buffers: HashMap<*mut cl_sys::c_void, (cl_sys::cl_mem, usize, usize, bool, Layout)>,
 }
 
 impl Accel {
     /// Generates a minicl environment
     /// from an OpenCL source code and a platform id.
-    pub fn new(oclsource: String, numplat: usize) -> Accel {
+    pub fn new(oclsource: String, numplat: usize) -> Result<Accel, MCLError> {
         let platform: cl_sys::cl_platform_id = std::ptr::null_mut();
         let mut nb_platforms: u32 = 0;
         let mut device: cl_sys::cl_device_id = std::ptr::null_mut();
+        
         let err = unsafe { cl_sys::clGetPlatformIDs(0, std::ptr::null_mut(), &mut nb_platforms) };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
+        
         println!("Found {} platform(s)", nb_platforms);
-        assert!(10 > nb_platforms);
-        let mut platform = [platform; 10];
+        if nb_platforms == 0 {
+             return Err(MCLError::Other("No OpenCL platforms found.".to_string()));
+        }
+
+        let mut platform = vec![platform; nb_platforms as usize];
         let err =
             unsafe { cl_sys::clGetPlatformIDs(nb_platforms, &mut platform[0], &mut nb_platforms) };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "OpenCL error: {}", error_text(err));
+        check_cl_error(err)?;
 
-        assert!(numplat < nb_platforms as usize);
+        if numplat >= nb_platforms as usize {
+             return Err(MCLError::Other(format!("Platform index {} out of range ({} found)", numplat, nb_platforms)));
+        }
+        
         let mut size: usize = 0;
         let err = unsafe {
             cl_sys::clGetPlatformInfo(
@@ -87,12 +121,16 @@ impl Accel {
                 &mut size,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "OpenCL error: {}", error_text(err));
-        assert!(size > 0);
+        check_cl_error(err)?;
+        
+        if size == 0 {
+            return Err(MCLError::Other("Platform name size is 0".to_string()));
+        }
 
         let platform_name = vec![1; size];
-        let platform_name = String::from_utf8(platform_name).unwrap();
-        let platform_name = std::ffi::CString::new(platform_name).unwrap();
+        let platform_name = String::from_utf8(platform_name).unwrap(); // Keeping unwraps for UTF8 as unlikely for now, can improve later
+        let platform_name = std::ffi::CString::new(platform_name)?; 
+        
         let err = unsafe {
             cl_sys::clGetPlatformInfo(
                 platform[numplat],
@@ -102,7 +140,8 @@ impl Accel {
                 &mut size,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "OpenCL error: {}", error_text(err));
+        check_cl_error(err)?;
+        
         let platform_name = unsafe {
             std::ffi::CStr::from_ptr(platform_name.as_ptr())
                 .to_string_lossy()
@@ -120,7 +159,7 @@ impl Accel {
                 &mut temp,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
 
         let mut err: i32 = 0;
         let context = unsafe {
@@ -133,7 +172,7 @@ impl Accel {
                 &mut err,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
 
         let mut err: i32 = 0;
         let queue = unsafe {
@@ -144,10 +183,10 @@ impl Accel {
                 &mut err,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
 
         let mut err: i32 = 0;
-        let oclsource = std::ffi::CString::new(oclsource).unwrap();
+        let oclsource = std::ffi::CString::new(oclsource)?;
         //let oclsources = [oclsource.as_ptr()];
         let program = unsafe {
             cl_sys::clCreateProgramWithSource(
@@ -158,9 +197,9 @@ impl Accel {
                 &mut err,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
 
-        let opt = std::ffi::CString::new("-w").unwrap();
+        let opt = std::ffi::CString::new("-w")?;
         let log: *mut cl_sys::c_void = std::ptr::null_mut();
         let errb = unsafe { cl_sys::clBuildProgram(program, 1, &device, opt.as_ptr(), None, log) };
 
@@ -176,13 +215,14 @@ impl Accel {
                 &mut size,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?; // We want to see this error even if build failed
+        
         println!("Size of build log: {}", size);
         // then get the build log
         let log = vec![1; size];
         let log = String::from_utf8(log).unwrap();
         //let log: *mut cl_sys::c_void = std::ptr::null_mut();
-        let log = std::ffi::CString::new(log).unwrap();
+        let log = std::ffi::CString::new(log)?;
 
         let err = unsafe {
             cl_sys::clGetProgramBuildInfo(
@@ -194,7 +234,8 @@ impl Accel {
                 &mut size,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
+
         let log = unsafe {
             std::ffi::CStr::from_ptr(log.as_ptr())
                 .to_string_lossy()
@@ -203,31 +244,32 @@ impl Accel {
         println!("Build messages:\n-------------------------------------");
         println!("{}", log);
         println!("-------------------------------------");
-        assert_eq!(errb, cl_sys::CL_SUCCESS, "{}", error_text(errb));
+        
+        check_cl_error(errb)?;
 
-        Accel {
+        Ok(Accel {
             context,
             device,
             program,
             queue,
             kernels: HashMap::new(),
             buffers: HashMap::new(),
-        }
+        })
     }
 
     /// Registers a kernel, before it can be called.
-    pub fn register_kernel(&mut self, name: &str) {
-        assert!(
-            !self.kernels.contains_key(name),
-            "Kernel already registered."
-        );
+    pub fn register_kernel(&mut self, name: &str) -> Result<(), MCLError> {
+        if self.kernels.contains_key(name) {
+            return Err(MCLError::Other(format!("Kernel '{}' already registered.", name)));
+        }
         let mut err: i32 = 0;
-        let cname = std::ffi::CString::new(name.to_string()).unwrap();
+        let cname = std::ffi::CString::new(name.to_string())?;
         let kernel: cl_sys::cl_kernel =
             unsafe { cl_sys::clCreateKernel(self.program, cname.as_ptr(), &mut err) };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
         //println!("kernel={:?}", kernel);
         self.kernels.insert(name.to_string(), kernel);
+        Ok(())
     }
 
     /// Registers a buffer before it can be passed to a kernel.
@@ -235,14 +277,15 @@ impl Accel {
     /// managed by OpenCL until the next map.
     /// It can not be accessed by the host until the next map.
     /// Returns a pointer to the memory zone managed by OpenCL.
-    pub fn register_buffer<T>(&mut self, mut v: Vec<T>) -> *mut cl_sys::c_void {
+    pub fn register_buffer<T>(&mut self, mut v: Vec<T>) -> Result<*mut cl_sys::c_void, MCLError> {
         v.shrink_to_fit();
-        assert!(v.len() == v.capacity());
+        if v.len() != v.capacity() {
+             return Err(MCLError::Other("Vector length must match capacity for buffer registration".to_string()));
+        }
         let ptr0 = v.as_mut_ptr() as *mut cl_sys::c_void;
-        assert!(
-            !self.buffers.contains_key(&ptr0),
-            "Buffer already registered."
-        );
+        if self.buffers.contains_key(&ptr0) {
+             return Err(MCLError::Other("Buffer already registered.".to_string()));
+        }
         let n = v.len();
         // leave deallocation duty to MiniCL
         std::mem::forget(v);
@@ -257,35 +300,53 @@ impl Accel {
                 &mut err,
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
         let is_map = false;
-        self.buffers.insert(ptr0, (buffer, n * szf, szf, is_map));
-        ptr0
+        let layout = std::alloc::Layout::new::<T>();
+        self.buffers.insert(ptr0, (buffer, n * szf, szf, is_map, layout));
+        Ok(ptr0)
     }
 
     /// Unmaps back to the device a buffer mapped on the host.
     /// The buffer must have been registered before.
-    pub fn unmap_buffer<T>(&mut self, mut v: Vec<T>) -> *mut cl_sys::c_void {
+    pub fn unmap_buffer<T>(&mut self, mut v: Vec<T>) -> Result<*mut cl_sys::c_void, MCLError> {
         v.shrink_to_fit();
-        assert!(v.len() == v.capacity());
+        if v.len() != v.capacity() {
+            return Err(MCLError::Other("Vector length mismatch during unmap".to_string()));
+        }
         let ptr0 = v.as_mut_ptr() as *mut cl_sys::c_void;
-        assert!(
-            self.buffers.contains_key(&ptr0),
-            "Buffer not yet registered."
-        );
+        if !self.buffers.contains_key(&ptr0) {
+            return Err(MCLError::Other("Buffer not registered or already dropped.".to_string()));
+        }
+
         let tup = self.buffers.get(&ptr0).unwrap();
         let buffer = tup.0;
         let size = tup.1;
         let szf = tup.2;
         let is_map = tup.3;
-        assert!(is_map, "Buffer is already unmap.");
-        //let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
+        let layout = tup.4;
+        
+        if !is_map {
+             return Err(MCLError::Other("Buffer is already unmapped.".to_string()));
+        }
+       
+        // Safety Check: Detect if the user reallocated the vector
+        let current_ptr = v.as_ptr() as *mut cl_sys::c_void;
+        if current_ptr != ptr0 {
+             return Err(MCLError::Other("Error: The buffer has been reallocated (pointer changed). \
+                    Cannot unmap a buffer that has moved in memory. \
+                    Did you push/resize the vector while it was mapped?".to_string()));
+        }
+       
+        let needed_capacity = size / szf;
+        if v.capacity() < needed_capacity {
+             return Err(MCLError::Other("Error: The buffer capacity has changed significantly. \
+                    This suggests a reallocation or logic error.".to_string()));
+        }
+
         self.buffers.remove(&ptr0).unwrap();
-        //println!("ptr0 before cl buffer création: {:?}", ptr0);
-        //let n = v.len();
         std::mem::forget(v);
-        // let szf = std::mem::size_of::<T>();
-        // println!("size={}", n * szf);
+        
         let err = unsafe {
             cl_sys::clEnqueueUnmapMemObject(
                 self.queue,
@@ -296,30 +357,34 @@ impl Accel {
                 std::ptr::null_mut(),
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
         let is_map = false;
-        self.buffers.insert(ptr0, (buffer, size, szf, is_map));
-        //println!("buffer={:?}", buffer);
-        //self.buffers.insert(ptr0, (buffer, n * szf, szf));
-        ptr0
+        self.buffers.insert(ptr0, (buffer, size, szf, is_map, layout));
+        Ok(ptr0)
     }
 
     /// Maps a buffer from the device to the host.
     /// Must be called before any access to the buffer
     /// from the host side.
-    pub fn map_buffer<T>(&mut self, ptr0: *mut cl_sys::c_void) -> Vec<T> {
+    pub fn map_buffer<T>(&mut self, ptr0: *mut cl_sys::c_void) -> Result<Vec<T>, MCLError> {
         let mut err = 0;
         let blocking = cl_sys::CL_TRUE;
         //let szf = std::mem::size_of::<T>();
         //let toto = self.buffers.get(&name).unwrap();
+        if !self.buffers.contains_key(&ptr0) {
+             return Err(MCLError::Other("Buffer not registered".to_string()));
+        }
         let tup = self.buffers.get(&ptr0).unwrap();
         let buffer = tup.0;
         let size = tup.1;
         let szf = tup.2;
         let is_map = tup.3;
-        assert!(!is_map, "Buffer already mapped.");
-        //let (mut buffer, mut size, mut szf, mut is_map) = self.buffers.get(&ptr0).unwrap();
-        //println!("buffer={:?} size={} szf={}", buffer, size, szf);
+        let layout = tup.4;
+        
+        if is_map {
+             return Err(MCLError::Other("Buffer already mapped.".to_string()));
+        }
+
         let ptr = unsafe {
             cl_sys::clEnqueueMapBuffer(
                 self.queue,
@@ -334,32 +399,38 @@ impl Accel {
                 &mut err,
             )
         } as *mut T;
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
         self.buffers.remove(&ptr0);
         let is_map = true;
-        self.buffers.insert(ptr0, (buffer, size, szf, is_map));
+        self.buffers.insert(ptr0, (buffer, size, szf, is_map, layout));
         let n = size / szf;
         //println!("size={} szf={}", size, szf);
-        assert!(size % szf == 0, "Possible type mistmatch.");
-        //println!("ptr0 before cl map: {:?}", ptr0);
-        //println!("ptr after cl map: {:?}", ptr);
-        assert_eq!(ptr, ptr0 as *mut T);
+        if size % szf != 0 {
+             return Err(MCLError::Other("Possible type mismatch (size not divisible by type size)".to_string()));
+        }
+        
+        if ptr != ptr0 as *mut T {
+             // This is a strict internal consistency check, maybe panic represents a totally broken state here? 
+             // But let's return Error for consistency.
+             return Err(MCLError::Other("OpenCL returned a different pointer than the hosted one. MiniCL logic broken for CL_MEM_USE_HOST_PTR.".to_string()));
+        }
+
         let v: Vec<T> = unsafe { Vec::from_raw_parts(ptr, n, n) };
-        // take possession of the memory
-        //let err = unsafe{ cl_sys::clRetainMemObject(buffer)};
-        v
+        Ok(v)
     }
 
     /// Defines kernel args value/location before kernel call.
     /// The args must implement the TrueArg traits, which converts
     /// the Rust arg type to the corresponding OpenCL type, with the
     /// same size.
-    pub fn set_kernel_arg<T: TrueArg>(&mut self, kname: &str, index: usize, arg: &T) {
-        let kernel = self.kernels.get(kname).unwrap();
+    pub fn set_kernel_arg<T: TrueArg>(&mut self, kname: &str, index: usize, arg: &T) -> Result<(), MCLError> {
+        let kernel = self.kernels.get(kname).ok_or(MCLError::Other(format!("Kernel '{}' not found", kname)))?;
         let smem = std::mem::size_of::<T>();
-        let targ = arg.true_arg(self);
+        // Check if argument is safe to use (not mapped)
+        let targ = arg.true_arg(self)?;
         let err = unsafe { cl_sys::clSetKernelArg(*kernel, index as u32, smem, targ) };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
+        Ok(())
     }
 
     /// Runs a kernel with given global size and local size.
@@ -370,10 +441,12 @@ impl Accel {
     /// and used by the kernel, this can produce undefined behavior.
     /// It is better to use the macro [kernel_set_args_and_run!](kernel_set_args_and_run!), which recheck all args.
     /// The measured overhead is generally very very small.
-    pub unsafe fn run_kernel(&mut self, kname: &str, globsize: usize, locsize: usize) {
-        let kernel = self.kernels.get(kname).unwrap();
+    pub unsafe fn run_kernel(&mut self, kname: &str, globsize: usize, locsize: usize) -> Result<(), MCLError> {
+        let kernel = self.kernels.get(kname).ok_or(MCLError::Other(format!("Kernel '{}' not found", kname)))?;
 
-        assert!(globsize % locsize == 0);
+        if globsize % locsize != 0 {
+             return Err(MCLError::Other(format!("Global size {} must be a multiple of local size {}", globsize, locsize)));
+        }
 
         let offset = 0;
         #[allow(unused_unsafe)]
@@ -390,11 +463,12 @@ impl Accel {
                 std::ptr::null_mut(),
             )
         };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
 
         #[allow(unused_unsafe)]
         let err = unsafe { cl_sys::clFinish(self.queue) };
-        assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
+        check_cl_error(err)?;
+        Ok(())
     }
 }
 
@@ -404,15 +478,17 @@ impl Accel {
 impl Drop for Accel {
     fn drop(&mut self) {
         println!("MiniCL memory drop");
-        for (ptr, (buffer, size, szf, is_map)) in self.buffers.iter() {
+        for (ptr, (buffer, size, szf, is_map, layout)) in self.buffers.iter() {
             if !is_map {
-                let n = size / szf;
+                let _n = size / szf;
+                // n is not used anymore for deallocation
                 assert!(size % szf == 0);
                 println!("Free buffer {:?}", ptr);
-                // give back the vector to Rust
-                // who will free the memory at the end
-                assert_eq!(std::mem::size_of::<u8>(), 1);
-                let _v: Vec<u8> = unsafe { Vec::from_raw_parts(*ptr as *mut u8, n * szf, n * szf) };
+                
+                // Correctly deallocate memory using the stored layout
+                unsafe {
+                    std::alloc::dealloc(*ptr as *mut u8, *layout);
+                }
             }
             let err = unsafe { cl_sys::clReleaseMemObject(*buffer) };
             assert_eq!(err, cl_sys::CL_SUCCESS, "{}", error_text(err));
@@ -438,8 +514,8 @@ impl Drop for Accel {
 /// For most cases, the default conversion is OK: simply
 /// converts the ref to a C void pointer.
 pub trait TrueArg {
-    fn true_arg(&self, _dev: &Accel) -> *const cl_sys::c_void {
-        self as *const _ as *const cl_sys::c_void
+    fn true_arg(&self, _dev: &Accel) -> Result<*const cl_sys::c_void, MCLError> {
+        Ok(self as *const _ as *const cl_sys::c_void)
     }
 }
 
@@ -448,16 +524,19 @@ impl TrueArg for i32 {}
 impl TrueArg for u32 {}
 impl TrueArg for f32 {}
 impl TrueArg for f64 {}
+impl TrueArg for usize {}
 
 
 /// Pointer conversion for buffer. We provide additional
 /// checks for better safety: the buffer must be registered
 /// and not currently mapped to the host.
 impl TrueArg for *mut cl_sys::c_void {
-    fn true_arg(&self, dev: &Accel) -> *const cl_sys::c_void {
-        let (buffer, _size, _szf, is_map) = dev.buffers.get(self).unwrap();
-        assert!(!is_map, "Buffer is mapped on the host.");
-        buffer as *const _ as *const cl_sys::c_void
+    fn true_arg(&self, dev: &Accel) -> Result<*const cl_sys::c_void, MCLError> {
+        let (buffer, _size, _szf, is_map, _layout) = dev.buffers.get(self).ok_or(MCLError::Other("Buffer not registered when setting arg".to_string()))?;
+        if *is_map {
+             return Err(MCLError::Other("Buffer is mapped on the host. Cannot set as kernel arg.".to_string()));
+        }
+        Ok(buffer as *const _ as *const cl_sys::c_void)
     }
 }
 
@@ -477,13 +556,13 @@ macro_rules! kernel_set_args_and_run {
         // println!("Kernel={:?}", $kname);
         // println!("Glob. size={:?}", $globsize);
         // println!("Loc. size={:?}", $locsize);
-        let mut count = -1;
+        let mut count: i32 = -1;
         $(
             // println!("Arg {} = {:?}", count,$arg);
             count +=1;
-            $dev.set_kernel_arg(& $kname, count as usize, & $arg);
+            $dev.set_kernel_arg(& $kname, count as usize, & $arg)?;
         )*
-        unsafe { $dev.run_kernel(& $kname, $globsize, $locsize)};
+        unsafe { $dev.run_kernel(& $kname, $globsize, $locsize) }
     }}
 }
 
@@ -560,33 +639,35 @@ pub fn error_text(error_code: cl_sys::cl_int) -> &'static str {
 
 // some unit tests
 #[test]
-fn test_init() {
+fn test_init() -> Result<(), MCLError> {
     let source = "__kernel  void simple_kernel(void){
         int i = get_global_id(0);
     }"
     .to_string();
 
-    let dev = Accel::new(source, 0);
+    let dev = Accel::new(source, 0)?;
     println!("{:?}", dev);
+    Ok(())
 }
 
 #[test]
-fn test_buffer() {
+fn test_buffer() -> Result<(), MCLError> {
     let source = "__kernel  void simple_kernel(void){
         int i = get_global_id(0);
     }"
     .to_string();
 
-    let mut dev = Accel::new(source, 0);
+    let mut dev = Accel::new(source, 0)?;
     let v: Vec<i32> = vec![3; 16];
     let v0 = v.clone();
-    let v = dev.register_buffer(v);
-    let v = dev.map_buffer(v);
+    let v = dev.register_buffer(v)?;
+    let v = dev.map_buffer(v)?;
     assert_eq!(v0, v);
+    Ok(())
 }
 
 #[test]
-fn test_kernel() {
+fn test_kernel() -> Result<(), MCLError> {
     let source = "__kernel  void simple_add(__global int *v, int x){
         int i = get_global_id(0);
         v[i] += x;
@@ -594,13 +675,14 @@ fn test_kernel() {
     .to_string();
 
     let kernel_name = "simple_add".to_string();
-    let mut dev = Accel::new(source, 0);
-    dev.register_kernel(&kernel_name);
+    let mut dev = Accel::new(source, 0)?;
+    dev.register_kernel(&kernel_name)?;
     let v: Vec<i32> = vec![3; 16];
     let vp: Vec<i32> = vec![6; 16];
-    let v = dev.register_buffer(v);
+    let v = dev.register_buffer(v)?;
     let x = 3;
-    kernel_set_args_and_run!(dev, kernel_name, 16, 4, v, x);
-    let v = dev.map_buffer(v);
+    kernel_set_args_and_run!(dev, kernel_name, 16, 4, v, x)?;
+    let v = dev.map_buffer(v)?;
     assert_eq!(vp, v);
+    Ok(())
 }

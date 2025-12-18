@@ -1,12 +1,15 @@
 // resolution of the wave equation on a square
 // with the leapfrog method and minicl
 // you need python and matplotlib for seeing the results
-fn main() {
+// resolution of the wave equation on a square
+// with the leapfrog method and minicl
+// you need python and matplotlib for seeing the results
+fn main() -> Result<(), minicl::MCLError> {
     use std::fs;
 
     // numerical parameters
-    let nx = 2048;
-    let ny = 2048;
+    let nx = 4096;
+    let ny = 4096;
     let tmax: f32 = 0.6;
     let lx: f32 = 1.;
     let ly: f32 = 1.;
@@ -43,13 +46,13 @@ fn main() {
     let input: usize = s.trim().parse().unwrap();
     let numplat = input;
 
-    let mut cldev = minicl::Accel::new(source, numplat);
+    let mut cldev = minicl::Accel::new(source, numplat)?;
 
     // registration of the kernels
     let init_sol = "init_sol".to_string();
-    cldev.register_kernel(&init_sol);
+    cldev.register_kernel(&init_sol)?;
     let time_step = "time_step".to_string();
-    cldev.register_kernel(&time_step);
+    cldev.register_kernel(&time_step)?;
 
     let n = nx * ny;
 
@@ -57,9 +60,9 @@ fn main() {
     let unm1: Vec<f32> = vec![0.; n];
     let un: Vec<f32> = vec![0.; n];
     let unp1: Vec<f32> = vec![0.; n];
-    let mut unm1 = cldev.register_buffer(unm1);
-    let mut un = cldev.register_buffer(un);
-    let mut unp1 = cldev.register_buffer(unp1);
+    let mut unm1 = cldev.register_buffer(unm1)?;
+    let mut un = cldev.register_buffer(un)?;
+    let mut unp1 = cldev.register_buffer(unp1)?;
 
     let globsize = n;
     let locsize = 32;
@@ -67,7 +70,7 @@ fn main() {
     use std::time::Instant;
     let start = Instant::now();
     // initial data
-    minicl::kernel_set_args_and_run!(cldev, init_sol, globsize, locsize, un, unm1);
+    minicl::kernel_set_args_and_run!(cldev, init_sol, globsize, locsize, un, unm1)?;
 
     // time loop
     let mut t = 0.;
@@ -75,7 +78,7 @@ fn main() {
     while t < tmax {
         t += dt;
         count += 1;
-        minicl::kernel_set_args_and_run!(cldev, time_step, globsize, locsize, t, unm1, un, unp1);
+        minicl::kernel_set_args_and_run!(cldev, time_step, globsize, locsize, t, unm1, un, unp1)?;
         let temp = unm1;
         unm1 = un;
         un = unp1;
@@ -89,11 +92,12 @@ fn main() {
     println!("Plotting...");
     // get back the buffer on the host
     // for plotting
-    let un: Vec<f32> = cldev.map_buffer(un);
+    let un: Vec<f32> = cldev.map_buffer(un)?;
 
     let xp: Vec<f32> = (0..nx).map(|i| i as f32 * dx).collect();
     let yp: Vec<f32> = (0..ny).map(|i| i as f32 * dy).collect();
     plotpy(xp.clone(), yp.clone(), un);
+    Ok(())
 }
 
 /// Plots a 2D data set using matplotlib.

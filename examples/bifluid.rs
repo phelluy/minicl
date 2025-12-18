@@ -1,7 +1,7 @@
 // resolution of the wave equation on a square
 // with the leapfrog method and minicl
 // you need python and matplotlib for seeing the results
-fn main() {
+fn main() -> Result<(), minicl::MCLError> {
     use std::fs;
 
     // numerical parameters
@@ -47,21 +47,21 @@ fn main() {
     let input: usize = s.trim().parse().unwrap();
     let numplat = input;
 
-    let mut cldev = minicl::Accel::new(source, numplat);
+    let mut cldev = minicl::Accel::new(source, numplat)?;
 
     // registration of the kernels
     let init_sol = "init_sol".to_string();
-    cldev.register_kernel(&init_sol);
+    cldev.register_kernel(&init_sol)?;
     let time_step = "time_step".to_string();
-    cldev.register_kernel(&time_step);
+    cldev.register_kernel(&time_step)?;
 
     let n = nx * ny;
 
     // memory buffers needed for the leapfrog computations
     let fnow: Vec<f32> = vec![0.; nk * n];
     let fnext: Vec<f32> = vec![0.; nk * n];
-    let mut fnow = cldev.register_buffer(fnow);
-    let mut fnext = cldev.register_buffer(fnext);
+    let mut fnow = cldev.register_buffer(fnow)?;
+    let mut fnext = cldev.register_buffer(fnext)?;
 
     let globsize = n;
     let locsize = 32;
@@ -69,14 +69,14 @@ fn main() {
     use std::time::Instant;
     let start = Instant::now();
     // initial data
-    minicl::kernel_set_args_and_run!(cldev, init_sol, globsize, locsize, fnow);
+    minicl::kernel_set_args_and_run!(cldev, init_sol, globsize, locsize, fnow)?;
     // time loop
     let mut t = 0.;
     let mut count = 0;
     while t < tmax {
         t += dt;
         count += 1;
-        minicl::kernel_set_args_and_run!(cldev, time_step, globsize, locsize, fnow, fnext);
+        minicl::kernel_set_args_and_run!(cldev, time_step, globsize, locsize, fnow, fnext)?;
         println!("tmax={} tend={}", tmax, t);
         let temp = fnow;
         fnow = fnext;
@@ -89,7 +89,7 @@ fn main() {
     println!("Plotting...");
     // get back the buffer on the host
     // for plotting
-    let fnow: Vec<f32> = cldev.map_buffer(fnow);
+    let fnow: Vec<f32> = cldev.map_buffer(fnow)?;
     let mut wnow: Vec<f32> = vec![0.; n];
 
     let iplot = 3;
@@ -103,6 +103,7 @@ fn main() {
     let xp: Vec<f32> = (0..nx).map(|i| i as f32 * dx).collect();
     let yp: Vec<f32> = (0..ny).map(|i| i as f32 * dy).collect();
     plotpy(xp.clone(), yp.clone(), wnow);
+    Ok(())
 }
 
 /// Plots a 2D data set using matplotlib.
