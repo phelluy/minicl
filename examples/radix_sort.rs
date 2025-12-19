@@ -4,6 +4,8 @@
 // http://hal.archives-ouvertes.fr/hal-00596730
 
 use minicl::Accel;
+#[allow(unused_imports)]
+use minicl::LocalBuffer;
 use minicl::MCLError;
 use std::fs;
 use std::io::stdin;
@@ -20,6 +22,9 @@ const PASS: usize = TOTALBITS / BITS; // 6
 const N: usize = 32 * (1 << 20); // 32M
 const MAXINT: u32 = 1 << (TOTALBITS - 1);
 // const VERBOSE: bool = true;
+
+// Toggle optimizations
+const USE_TRANSPOSE: bool = false;
 
 // Simple LCG for random numbers to avoid 'rand' dependency
 struct Lcg {
@@ -66,6 +71,10 @@ fn main() -> Result<(), MCLError> {
     let max_loc_scan = maxmemcache; // This is the count of items
     source = source.replace("<MAX_LOC_SCAN>", &max_loc_scan.to_string());
 
+    if USE_TRANSPOSE {
+        source.insert_str(0, "#define TRANSPOSE\n");
+    }
+
     println!("Enter platform num:");
     let mut s = String::new();
     stdin()
@@ -85,6 +94,8 @@ fn main() -> Result<(), MCLError> {
     cldev.register_kernel(k_paste_histogram)?;
     let k_reorder = "reorder";
     cldev.register_kernel(k_reorder)?;
+    let k_transpose = "transpose";
+    cldev.register_kernel(k_transpose)?;
 
     // Data generation
     println!("Generating {} random keys...", N);
@@ -128,6 +139,55 @@ fn main() -> Result<(), MCLError> {
     let start_time = Instant::now();
 
     // Loop
+    // INITIAL TRANSPOSE
+    if USE_TRANSPOSE {
+        // Transpose IN -> OUT (used as temp)
+        // We want Blocked (Thread x Items) -> Coalesced (Items x Threads).
+        // Input: nbrow = Threads. nbcol = ItemsPerThread.
+        // Transpose Kernel: Input Width = nbcol. Input Height = nbrow.
+
+        let nbrow_t1 = GROUPS * ITEMS; // Threads
+        let nbcol_t1 = N / nbrow_t1; // Items per thread
+
+        // Transpose Params
+        let tilesize_transpose = 16;
+        // Global size = (InputHeight / TileSize) * InputWidth
+        let g_size_transpose = (nbrow_t1 / tilesize_transpose) * nbcol_t1;
+        let l_size_transpose = tilesize_transpose;
+
+        let nbcol_i32 = nbcol_t1 as i32;
+        let nbrow_i32 = nbrow_t1 as i32;
+        let tilesize_i32 = tilesize_transpose as i32;
+
+        // __kernel void transpose(invect, outvect, nbcol, nbrow, inperm, outperm, blockmat, blockperm, tilesize)
+        // We use d_out_keys as temp buffer
+        // Also perm vars (d_in_permut, d_out_permut)
+
+        // Local arg structure: size = tilesize * tilesize * size_of<int>
+        let loc_mat_size = tilesize_transpose * tilesize_transpose * std::mem::size_of::<u32>();
+        let loc_mat = minicl::LocalBuffer { size: loc_mat_size }; // We need LocalBuffer back!
+        let loc_perm = minicl::LocalBuffer { size: loc_mat_size };
+
+        minicl::kernel_set_args_and_run!(
+            cldev,
+            k_transpose,
+            g_size_transpose,
+            l_size_transpose,
+            d_in_keys,
+            d_out_keys,
+            nbcol_i32,
+            nbrow_i32,
+            d_in_permut,
+            d_out_permut,
+            loc_mat,
+            loc_perm,
+            tilesize_i32
+        )?;
+
+        std::mem::swap(&mut d_in_keys, &mut d_out_keys);
+        std::mem::swap(&mut d_in_permut, &mut d_out_permut);
+    }
+
     for pass in 0..PASS {
         // --- 1. HISTOGRAM ---
         // __kernel void histogram(d_Keys, d_Histograms, pass, __local loc_histo, n)
@@ -229,6 +289,70 @@ fn main() -> Result<(), MCLError> {
         std::mem::swap(&mut d_in_keys, &mut d_out_keys);
         std::mem::swap(&mut d_in_permut, &mut d_out_permut);
     } // End of loop
+
+    // FINAL TRANSPOSE (Inverse)
+    // Transpose(Transpose(M)) = M.
+    // Here we transposed (Rows, Cols) -> (Cols, Rows).
+    // Now we must transpose BACK: (Cols, Rows) -> (Rows, Cols).
+    // In our case nbrow/nbcol arguments are dimensions of INPUT matrix.
+    // Matrix AFTER sort is in Transposed state: (nbcol, nbrow).
+    // We want A layout back.
+    // So we apply Transpose on B.
+    // Input Dims: Height=nbcol, Width=nbrow.
+    // But our kernel expects `nbcol` and `nbrow` of INPUT?
+    // Let's check kernel:
+    // k = (i0 + iloc) * nbcol + j; // Input index
+    // kt = (j0 + iloc) * nbrow + i0 + jloc; // Output index (nbrow is output width?)
+    // Wait. "position in the transpose".
+    // If Input is R x C. Output is C x R.
+    // `nbcol` in kernel param name suggests Input Width.
+    // `nbrow` in kernel param name suggest Input Height? Or Output Width?
+    // `kt = ... * nbrow`. Stride is `nbrow`. So Output Width is `nbrow`.
+    // Yes, `nbrow` param IS Output Width (Input Height).
+
+    if USE_TRANSPOSE {
+        // Final Transpose (Inverse)
+        // Input is Coalesced (Items x Threads).
+        // We want Blocked (Thread x Items).
+        // Input Width (nbcol) = Threads.
+        // Input Height (nbrow) = ItemsPerThread.
+
+        let nbrow_t2 = N / (GROUPS * ITEMS); // Items per thread
+        let nbcol_t2 = GROUPS * ITEMS; // Threads
+
+        let tilesize_transpose = 16;
+        // G_Size = (nbrow / tilesize) * nbcol
+        let g_size_transpose = (nbrow_t2 / tilesize_transpose) * nbcol_t2;
+        let l_size_transpose = tilesize_transpose;
+
+        let nbcol_i32 = nbcol_t2 as i32;
+        let nbrow_i32 = nbrow_t2 as i32;
+        let tilesize_i32 = tilesize_transpose as i32;
+
+        // Local arg structure: size = tilesize * tilesize * std::mem::size_of::<u32>()
+        let loc_mat_size = tilesize_transpose * tilesize_transpose * std::mem::size_of::<u32>();
+        let loc_mat = minicl::LocalBuffer { size: loc_mat_size };
+        let loc_perm = minicl::LocalBuffer { size: loc_mat_size };
+
+        minicl::kernel_set_args_and_run!(
+            cldev,
+            k_transpose,
+            g_size_transpose,
+            l_size_transpose,
+            d_in_keys,
+            d_out_keys,
+            nbcol_i32,
+            nbrow_i32,
+            d_in_permut,
+            d_out_permut,
+            loc_mat,
+            loc_perm,
+            tilesize_i32
+        )?;
+
+        std::mem::swap(&mut d_in_keys, &mut d_out_keys);
+        std::mem::swap(&mut d_in_permut, &mut d_out_permut);
+    }
 
     let duration = start_time.elapsed();
     println!("Sorting took: {:?}", duration);

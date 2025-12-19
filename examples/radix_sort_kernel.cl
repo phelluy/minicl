@@ -100,10 +100,40 @@ __kernel void transpose(const __global int *invect, __global int *outvect,
                         __local int *blockmat, __local int *blockperm,
                         const int tilesize) {
 
-  int i0 = get_global_id(0) * tilesize; // first row index
-  int j = get_global_id(1);             // column index
+  // Flattened 1D launch emulation
+  // Global Size = (nbrow / tilesize) * nbcol
+  // We map global ID to (block_row, col)
+  // i0 corresponds to `get_global_id(0)` in 2D which was `block_row * tilesize`
+  // j corresponds to `get_global_id(1)` in 2D which was `col`
 
-  int jloc = get_local_id(1); // local column index
+  // Here global_id(0) covers the whole 2D range
+  int gid = get_global_id(0);
+
+  // nbcol is the width of the matrix
+  // j is the column index
+  // But wait, the launch geometry in 2D was:
+  // dim0: nbrow / tilesize
+  // dim1: nbcol
+  // So gid = (i_block_idx) * nbcol + j
+  // i_block_idx = gid / nbcol
+  // j = gid % nbcol
+
+  int i_block_idx = gid / nbcol;
+  int j = gid % nbcol;
+
+  int i0 = i_block_idx * tilesize; // first row index
+
+  // jloc was get_local_id(1). In 2D launch, local size was likely (1,
+  // tilesize). So local_id(1) varied 0..tilesize-1 along the column dimension.
+  // In 1D launch, if local_size is `tilesize`, then local_id(0) is
+  // 0..tilesize-1. BUT `j` index advances by 1 for each thread. `gid` advances
+  // by 1. `j` advances by 1 (modulo nbcol). If `nbcol` is multiple of
+  // `tilesize`, this works perfectly. jloc = j % tilesize? Or simplify
+  // get_local_id(0)? If we launch with local_size = tilesize, and `nbcol` is
+  // multiple of `tilesize`: work-group handles a specific strip of columns for
+  // a specific row-block. Yes.
+
+  int jloc = get_local_id(0); // local column index
 
   // fill the cache
   for (int iloc = 0; iloc < tilesize; iloc++) {
@@ -116,8 +146,8 @@ __kernel void transpose(const __global int *invect, __global int *outvect,
 
   barrier(CLK_LOCAL_MEM_FENCE);
 
-  // first row index in the transpose
-  int j0 = get_group_id(1) * tilesize;
+  // first row index in the transpose (corresponding to Input Tile Column)
+  int j0 = j - jloc;
 
   // put the cache at the good place
   for (int iloc = 0; iloc < tilesize; iloc++) {
