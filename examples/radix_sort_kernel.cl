@@ -19,7 +19,8 @@
 // it has to be divisible by  _ITEMS * _GROUPS
 // (for other sizes, pad the list with big values)
 // #define _N (_ITEMS * _GROUPS * 16)
-#define _N <N> // maximal size of the list
+#define _N <N>                       // maximal size of the list
+#define _MAX_LOC_SCAN <MAX_LOC_SCAN> // max local memory for scan kernel
 #define VERBOSE 1
 // #define TRANSPOSE  // transpose the initial vector (faster memory access)
 // #define PERMUT  // store the final permutation
@@ -36,8 +37,11 @@
 // <ITEMS>, <GROUPS>, etc. are replaced by actual values before compilation
 
 // compute the histogram for each radix and each virtual processor for the pass
+// compute the histogram for each radix and each virtual processor for the pass
 __kernel void histogram(const __global int *d_Keys, __global int *d_Histograms,
-                        const int pass, __local int *loc_histo, const int n) {
+                        const int pass, const int n) {
+
+  __local int loc_histo[_RADIX * _ITEMS];
 
   int it = get_local_id(0);  // i local number of the processor
   int ig = get_global_id(0); // global number = i + g I
@@ -127,10 +131,13 @@ __kernel void transpose(const __global int *invect, __global int *outvect,
 }
 
 // each virtual processor reorders its data using the scanned histogram
+// each virtual processor reorders its data using the scanned histogram
 __kernel void reorder(const __global int *d_inKeys, __global int *d_outKeys,
                       __global int *d_Histograms, const int pass,
                       __global int *d_inPermut, __global int *d_outPermut,
-                      __local int *loc_histo, const int n) {
+                      const int n) {
+
+  __local int loc_histo[_RADIX * _ITEMS];
 
   int it = get_local_id(0);
   int ig = get_global_id(0);
@@ -184,8 +191,12 @@ __kernel void reorder(const __global int *d_inKeys, __global int *d_outKeys,
 // perform a parallel prefix sum (a scan) on the local histograms
 // (see Blelloch 1990) each workitem worries about two memories
 // see also http://http.developer.nvidia.com/GPUGems3/gpugems3_ch39.html
-__kernel void scanhistograms(__global int *histo, __local int *temp,
-                             __global int *globsum) {
+// perform a parallel prefix sum (a scan) on the local histograms
+// (see Blelloch 1990) each workitem worries about two memories
+// see also http://http.developer.nvidia.com/GPUGems3/gpugems3_ch39.html
+__kernel void scanhistograms(__global int *histo, __global int *globsum) {
+
+  __local int temp[_MAX_LOC_SCAN];
 
   int it = get_local_id(0);
   int ig = get_global_id(0);
