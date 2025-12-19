@@ -425,10 +425,19 @@ impl Accel {
     /// same size.
     pub fn set_kernel_arg<T: TrueArg>(&mut self, kname: &str, index: usize, arg: &T) -> Result<(), MCLError> {
         let kernel = self.kernels.get(kname).ok_or(MCLError::Other(format!("Kernel '{}' not found", kname)))?;
-        let smem = std::mem::size_of::<T>();
+        let smem = arg.arg_size();
         // Check if argument is safe to use (not mapped)
         let targ = arg.true_arg(self)?;
         let err = unsafe { cl_sys::clSetKernelArg(*kernel, index as u32, smem, targ) };
+        check_cl_error(err)?;
+        Ok(())
+    }
+
+    /// Sets a local memory argument for a kernel.
+    /// `size` is the number of bytes to allocate in local memory.
+    pub fn set_kernel_local_arg(&mut self, kname: &str, index: usize, size: usize) -> Result<(), MCLError> {
+        let kernel = self.kernels.get(kname).ok_or(MCLError::Other(format!("Kernel '{}' not found", kname)))?;
+        let err = unsafe { cl_sys::clSetKernelArg(*kernel, index as u32, size, std::ptr::null()) };
         check_cl_error(err)?;
         Ok(())
     }
@@ -517,6 +526,9 @@ pub trait TrueArg {
     fn true_arg(&self, _dev: &Accel) -> Result<*const cl_sys::c_void, MCLError> {
         Ok(self as *const _ as *const cl_sys::c_void)
     }
+    fn arg_size(&self) -> usize where Self: Sized {
+        std::mem::size_of::<Self>()
+    }
 }
 
 /// Nothing to do for basic types.
@@ -526,6 +538,19 @@ impl TrueArg for f32 {}
 impl TrueArg for f64 {}
 impl TrueArg for usize {}
 
+/// Wrapper for local memory argument
+pub struct LocalBuffer {
+    pub size: usize,
+}
+
+impl TrueArg for LocalBuffer {
+    fn true_arg(&self, _dev: &Accel) -> Result<*const cl_sys::c_void, MCLError> {
+        Ok(std::ptr::null())
+    }
+    fn arg_size(&self) -> usize {
+        self.size
+    }
+}
 
 /// Pointer conversion for buffer. We provide additional
 /// checks for better safety: the buffer must be registered
@@ -537,6 +562,9 @@ impl TrueArg for *mut cl_sys::c_void {
              return Err(MCLError::Other("Buffer is mapped on the host. Cannot set as kernel arg.".to_string()));
         }
         Ok(buffer as *const _ as *const cl_sys::c_void)
+    }
+    fn arg_size(&self) -> usize {
+        std::mem::size_of::<cl_sys::cl_mem>()
     }
 }
 
