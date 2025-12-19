@@ -189,7 +189,7 @@ fn main() -> Result<(), MCLError> {
 
         // --- 3. PASTE HISTOGRAMS ---
         let nbitems_paste = (RADIX * GROUPS * ITEMS) / 2;
-        let nblocitems_paste = nbitems_paste / HISTOSPLIT;
+        let _nblocitems_paste = nbitems_paste / HISTOSPLIT;
 
         // pastehistograms(histo, globsum)
 

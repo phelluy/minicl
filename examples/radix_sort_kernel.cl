@@ -1,29 +1,28 @@
 // OpenCL kernels for sorting integer list
-// copyright Philippe Helluy, Université de Strasbourg, France, 2011,
-// helluy@math.unistra.fr licensed under the GNU Lesser General Public License
-// see http://www.gnu.org/copyleft/lesser.html if you find this software usefull
-// you can cite the following work in your reports or articles: Philippe HELLUY,
-// A portable implementation of the radix sort algorithm in OpenCL, 2011.
-// http://hal.archives-ouvertes.fr/hal-00596730
 // global parameters for the radix sort kernels
 // they are replaced by string manipulation before compilation
 ///////////////////////////////////////////////////////
-// these parameters can be changed
-#define _ITEMS <ITEMS>   // number of items in a group
-#define _GROUPS <GROUPS> // the number of virtual processors is _ITEMS * _GROUPS
-#define _HISTOSPLIT <HISTOSPLIT> // number of splits of the histogram
-#define _TOTALBITS                                                             \
-  <TOTALBITS>        // number of bits for the integer in the list (max=32)
-#define _BITS <BITS> // number of bits in the radix
-// max size of the sorted vector
-// it has to be divisible by  _ITEMS * _GROUPS
+// number of items in a group
+#define _ITEMS <ITEMS>
+// the number of virtual processors is _ITEMS * _GROUPS
+#define _GROUPS <GROUPS>
+// number of splits of the histogram
+#define _HISTOSPLIT <HISTOSPLIT>
+// number of bits for the integer in the list (max=32)
+#define _TOTALBITS <TOTALBITS>
+// number of bits in the radix
+#define _BITS <BITS>
+// maximal size of the list
+// it has to be divisible by _ITEMS * _GROUPS
 // (for other sizes, pad the list with big values)
-// #define _N (_ITEMS * _GROUPS * 16)
-#define _N <N>                       // maximal size of the list
-#define _MAX_LOC_SCAN <MAX_LOC_SCAN> // max local memory for scan kernel
+#define _N <N>
+// max local memory for scan kernel
+#define _MAX_LOC_SCAN <MAX_LOC_SCAN>
 #define VERBOSE 1
-// #define TRANSPOSE  // transpose the initial vector (faster memory access)
-// #define PERMUT  // store the final permutation
+// transpose the initial vector (faster memory access)
+// #define TRANSPOSE
+// store the final permutation
+// #define PERMUT
 ////////////////////////////////////////////////////////
 
 // the following parameters are computed from the previous
